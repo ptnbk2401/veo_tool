@@ -80,13 +80,23 @@ class VideoRenderer {
       async (attempt) => {
         try {
           console.log(
-            `Starting video render for: ${flowUrl} (attempt ${attempt})`
+            `Starting video render for: ${
+              flowUrl || "new project"
+            } (attempt ${attempt})`
           );
 
-          // Step 1: Navigate to Flow URL with retry
+          // Step 1: Create new project or navigate to existing Flow URL
+          let actualFlowUrl = flowUrl;
+          if (!flowUrl || flowUrl.trim() === "") {
+            console.log("No Flow_URL provided, creating new VEO3 project...");
+            actualFlowUrl = await this.createNewVEO3Project(driver);
+            console.log(`Created new project with URL: ${actualFlowUrl}`);
+          }
+
+          // Step 2: Navigate to Flow URL with retry
           await this.retryHandler.executeWithRetry(
             async () => {
-              return await this.navigateToFlow(driver, flowUrl);
+              return await this.navigateToFlow(driver, actualFlowUrl);
             },
             { description: "Navigate to Flow URL" }
           );
@@ -99,7 +109,18 @@ class VideoRenderer {
             { description: "Input prompt" }
           );
 
-          // Step 3: Click render button with retry
+          // Step 3: Configure video settings (model, aspect ratio, etc.)
+          await this.retryHandler.executeWithRetry(
+            async () => {
+              return await this.configureVideoSettings(
+                driver,
+                config.videoSettings || {}
+              );
+            },
+            { description: "Configure video settings" }
+          );
+
+          // Step 4: Click render button with retry
           await this.retryHandler.executeWithRetry(
             async () => {
               return await this.clickRender(driver);
@@ -107,14 +128,14 @@ class VideoRenderer {
             { description: "Click render button" }
           );
 
-          // Step 4: Monitor progress (no retry for this as it's a long-running operation)
+          // Step 5: Monitor progress (no retry for this as it's a long-running operation)
           const renderResult = await this.enhancedProgressMonitoring(
             driver,
             config.timeout,
             config.onProgressUpdate
           );
 
-          // Step 5: Download video with retry
+          // Step 6: Download video with retry
           const downloadPath = await this.retryHandler.executeWithRetry(
             async () => {
               return await this.downloadVideo(driver, config.outputFolder);
@@ -128,6 +149,7 @@ class VideoRenderer {
             renderTime: renderResult.renderTime,
             message: "Video rendered and downloaded successfully",
             attempts: attempt,
+            flowUrl: actualFlowUrl, // Return the actual Flow URL used
           };
         } catch (error) {
           console.error(`Video rendering attempt ${attempt} failed:`, error);
@@ -151,6 +173,320 @@ class VideoRenderer {
       },
       { description: `Render video: ${flowUrl}` }
     );
+  }
+
+  async createNewVEO3Project(driver) {
+    try {
+      console.log("Creating new VEO3 project...");
+
+      // Navigate to VEO3 main page
+      await driver.get("https://labs.google/fx/tools/flow");
+
+      // Wait for page to load
+      await driver.wait(until.titleContains("VEO"), this.timeouts.pageLoad);
+
+      // Look for "New Project" or "Create" button
+      const newProjectSelectors = [
+        'button:contains("New")',
+        'button:contains("Create")',
+        'button:contains("Start")',
+        '[data-testid="new-project"]',
+        ".new-project-btn",
+        'a[href*="new"]',
+        'button[aria-label*="new"]',
+      ];
+
+      let newProjectButton = null;
+      for (const selector of newProjectSelectors) {
+        try {
+          newProjectButton = await driver.findElement(By.css(selector));
+          if (newProjectButton) break;
+        } catch (e) {
+          // Continue to next selector
+        }
+      }
+
+      if (!newProjectButton) {
+        // If no specific button found, try to find any clickable element with "new" text
+        try {
+          newProjectButton = await driver.findElement(
+            By.xpath(
+              "//button[contains(translate(text(), 'NEW', 'new'), 'new')] | //a[contains(translate(text(), 'NEW', 'new'), 'new')]"
+            )
+          );
+        } catch (e) {
+          throw new Error("Could not find 'New Project' button on VEO3 page");
+        }
+      }
+
+      // Click the new project button
+      await driver.wait(
+        until.elementIsVisible(newProjectButton),
+        this.timeouts.elementWait
+      );
+      await driver.wait(
+        until.elementIsEnabled(newProjectButton),
+        this.timeouts.elementWait
+      );
+      await newProjectButton.click();
+
+      console.log(
+        "Clicked new project button, waiting for project creation..."
+      );
+
+      // Wait for URL to change to a project-specific URL
+      await driver.wait(async () => {
+        const currentUrl = await driver.getCurrentUrl();
+        return (
+          currentUrl.includes("/flow/") ||
+          currentUrl.includes("/project/") ||
+          currentUrl.includes("/edit/")
+        );
+      }, this.timeouts.pageLoad);
+
+      const projectUrl = await driver.getCurrentUrl();
+      console.log(`New VEO3 project created: ${projectUrl}`);
+
+      return projectUrl;
+    } catch (error) {
+      console.error("Failed to create new VEO3 project:", error);
+      throw new Error(`Failed to create new VEO3 project: ${error.message}`);
+    }
+  }
+
+  async configureVideoSettings(driver, videoSettings = {}) {
+    try {
+      console.log("Configuring video settings...", videoSettings);
+
+      // Default settings (updated for VEO 3.1)
+      const settings = {
+        model: "veo-3.1-fast", // Latest VEO model version
+        aspectRatio: "16:9", // Video aspect ratio
+        videoCount: 1, // Number of videos to generate
+        duration: "5s", // Video duration
+        quality: "high", // Video quality
+        ...videoSettings,
+      };
+
+      // Wait a moment for the page to fully load
+      await driver.sleep(2000);
+
+      // Configure VEO Model
+      await this.configureVEOModel(driver, settings.model);
+
+      // Configure Aspect Ratio
+      await this.configureAspectRatio(driver, settings.aspectRatio);
+
+      // Configure Video Count
+      await this.configureVideoCount(driver, settings.videoCount);
+
+      // Configure Duration (if available)
+      await this.configureDuration(driver, settings.duration);
+
+      // Configure Quality (if available)
+      await this.configureQuality(driver, settings.quality);
+
+      console.log("Video settings configured successfully");
+
+      // Wait a moment for settings to apply
+      await driver.sleep(1000);
+    } catch (error) {
+      console.warn("Failed to configure some video settings:", error.message);
+      // Don't throw error - continue with default settings
+    }
+  }
+
+  async configureVEOModel(driver, model) {
+    try {
+      const modelSelectors = [
+        `[data-testid="model-selector"]`,
+        `select[name="model"]`,
+        `.model-selector`,
+        `button[aria-label*="model"]`,
+        `[aria-label*="VEO"]`,
+      ];
+
+      for (const selector of modelSelectors) {
+        try {
+          const modelElement = await driver.findElement(By.css(selector));
+
+          if ((await modelElement.getTagName()) === "select") {
+            // Dropdown select
+            await modelElement.click();
+            const option = await driver.findElement(
+              By.css(`option[value*="${model}"], option:contains("${model}")`)
+            );
+            await option.click();
+          } else {
+            // Button or clickable element
+            await modelElement.click();
+            // Look for model option
+            const modelOption = await driver.findElement(
+              By.xpath(
+                `//*[contains(text(), "${model}") or contains(@value, "${model}")]`
+              )
+            );
+            await modelOption.click();
+          }
+
+          console.log(`VEO model set to: ${model}`);
+          return;
+        } catch (e) {
+          // Continue to next selector
+        }
+      }
+
+      console.log("Model selector not found, using default");
+    } catch (error) {
+      console.warn("Failed to configure VEO model:", error.message);
+    }
+  }
+
+  async configureAspectRatio(driver, aspectRatio) {
+    try {
+      const ratioSelectors = [
+        `[data-testid="aspect-ratio"]`,
+        `select[name="aspectRatio"]`,
+        `.aspect-ratio-selector`,
+        `button[aria-label*="aspect"]`,
+        `[title*="aspect"]`,
+      ];
+
+      for (const selector of ratioSelectors) {
+        try {
+          const ratioElement = await driver.findElement(By.css(selector));
+
+          if ((await ratioElement.getTagName()) === "select") {
+            await ratioElement.click();
+            const option = await driver.findElement(
+              By.css(
+                `option[value="${aspectRatio}"], option:contains("${aspectRatio}")`
+              )
+            );
+            await option.click();
+          } else {
+            await ratioElement.click();
+            const ratioOption = await driver.findElement(
+              By.xpath(`//*[contains(text(), "${aspectRatio}")]`)
+            );
+            await ratioOption.click();
+          }
+
+          console.log(`Aspect ratio set to: ${aspectRatio}`);
+          return;
+        } catch (e) {
+          // Continue to next selector
+        }
+      }
+
+      console.log("Aspect ratio selector not found, using default");
+    } catch (error) {
+      console.warn("Failed to configure aspect ratio:", error.message);
+    }
+  }
+
+  async configureVideoCount(driver, videoCount) {
+    try {
+      const countSelectors = [
+        `[data-testid="video-count"]`,
+        `input[name="videoCount"]`,
+        `select[name="count"]`,
+        `.video-count-selector`,
+        `input[type="number"]`,
+      ];
+
+      for (const selector of countSelectors) {
+        try {
+          const countElement = await driver.findElement(By.css(selector));
+
+          if ((await countElement.getTagName()) === "input") {
+            await countElement.clear();
+            await countElement.sendKeys(videoCount.toString());
+          } else if ((await countElement.getTagName()) === "select") {
+            await countElement.click();
+            const option = await driver.findElement(
+              By.css(`option[value="${videoCount}"]`)
+            );
+            await option.click();
+          }
+
+          console.log(`Video count set to: ${videoCount}`);
+          return;
+        } catch (e) {
+          // Continue to next selector
+        }
+      }
+
+      console.log("Video count selector not found, using default");
+    } catch (error) {
+      console.warn("Failed to configure video count:", error.message);
+    }
+  }
+
+  async configureDuration(driver, duration) {
+    try {
+      const durationSelectors = [
+        `[data-testid="duration"]`,
+        `select[name="duration"]`,
+        `.duration-selector`,
+        `button[aria-label*="duration"]`,
+      ];
+
+      for (const selector of durationSelectors) {
+        try {
+          const durationElement = await driver.findElement(By.css(selector));
+          await durationElement.click();
+
+          const durationOption = await driver.findElement(
+            By.xpath(`//*[contains(text(), "${duration}")]`)
+          );
+          await durationOption.click();
+
+          console.log(`Duration set to: ${duration}`);
+          return;
+        } catch (e) {
+          // Continue to next selector
+        }
+      }
+
+      console.log("Duration selector not found, using default");
+    } catch (error) {
+      console.warn("Failed to configure duration:", error.message);
+    }
+  }
+
+  async configureQuality(driver, quality) {
+    try {
+      const qualitySelectors = [
+        `[data-testid="quality"]`,
+        `select[name="quality"]`,
+        `.quality-selector`,
+        `button[aria-label*="quality"]`,
+      ];
+
+      for (const selector of qualitySelectors) {
+        try {
+          const qualityElement = await driver.findElement(By.css(selector));
+          await qualityElement.click();
+
+          const qualityOption = await driver.findElement(
+            By.xpath(
+              `//*[contains(text(), "${quality}") or contains(@value, "${quality}")]`
+            )
+          );
+          await qualityOption.click();
+
+          console.log(`Quality set to: ${quality}`);
+          return;
+        } catch (e) {
+          // Continue to next selector
+        }
+      }
+
+      console.log("Quality selector not found, using default");
+    } catch (error) {
+      console.warn("Failed to configure quality:", error.message);
+    }
   }
 
   async navigateToFlow(driver, flowUrl) {

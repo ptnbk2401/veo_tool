@@ -33,6 +33,13 @@ class ConfigManager {
         downloadTimeout: 60000,
         pageLoadTimeout: 30000,
       },
+      video: {
+        model: "veo-3.1-fast", // VEO model version (veo-3.1-fast, veo-3.1-standard, veo-2)
+        aspectRatio: "16:9", // Video aspect ratio (16:9, 9:16, 1:1, 4:3)
+        count: 1, // Number of videos to generate per prompt (1-4)
+        duration: "5s", // Video duration (5s, 10s, 15s, 30s)
+        quality: "high", // Video quality (high, medium, low)
+      },
       security: {
         allowInsecureConnections: false,
         validateCertificates: true,

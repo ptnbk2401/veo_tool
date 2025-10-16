@@ -176,7 +176,7 @@ class AutomationManager {
             "rendering"
           );
 
-          // Render video
+          // Render video with video settings
           const result = await this.videoRenderer.renderVideo(
             this.driver,
             item.Flow_URL,
@@ -184,6 +184,14 @@ class AutomationManager {
             {
               timeout: this.configManager.get("automation.timeout"),
               outputFolder: this.configManager.get("paths.outputFolder"),
+              videoSettings: {
+                model: this.configManager.get("video.model") || "veo-2",
+                aspectRatio:
+                  this.configManager.get("video.aspectRatio") || "16:9",
+                videoCount: this.configManager.get("video.count") || 1,
+                duration: this.configManager.get("video.duration") || "5s",
+                quality: this.configManager.get("video.quality") || "high",
+              },
               onProgressUpdate: (progress) => {
                 // Emit progress update event
                 this.emitProgressUpdate(jobId, item.ID, progress);
@@ -191,7 +199,7 @@ class AutomationManager {
             }
           );
 
-          // Update item status to done
+          // Update item status to done with all result data
           await this.batchProcessor.updateJobItemStatus(
             jobId,
             item.ID,
@@ -199,6 +207,7 @@ class AutomationManager {
             {
               videoPath: result.videoPath,
               renderTime: Date.now() - startTime,
+              flowUrl: result.flowUrl, // Save the actual Flow URL used
             }
           );
 

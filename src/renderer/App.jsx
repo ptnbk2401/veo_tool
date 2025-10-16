@@ -3,7 +3,7 @@ import { useAppStore } from './store/app-store'
 import AccountManager from './components/AccountManager'
 import BatchProcessor from './components/BatchProcessor'
 import ProgressMonitor from './components/ProgressMonitor'
-import SettingsPanel from './components/SettingsPanel'
+import Settings from './components/Settings'
 
 function App() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -31,7 +31,7 @@ function App() {
     { id: 'accounts', label: 'Accounts', component: AccountManager },
     { id: 'batch', label: 'Batch Processing', component: BatchProcessor },
     { id: 'progress', label: 'Progress', component: ProgressMonitor },
-    { id: 'settings', label: 'Settings', component: SettingsPanel }
+    { id: 'settings', label: 'Settings', component: Settings }
   ]
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component
