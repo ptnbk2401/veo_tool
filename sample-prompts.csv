@@ -1,3 +1,5 @@
-ID,Prompt
-1,"A cat playing with a ball of yarn in a sunny garden"
-2,"A robot dancing in the rain under neon lights"
+ID,Prompt,Flow_URL,Status,StartTime,EndTime,VideoPath,Error,Attempts
+1,A cat playing with a ball of yarn in a sunny garden,https://labs.google/fx/vi/tools/flow/project/0d0fb122-6760-40dc-803d-c1edc5cf18a0,error,2025-10-16T17:54:01.960Z,2025-10-16T17:54:02.192Z,,"Operation failed after 3 attempts. Last error: Video rendering failed: Operation failed after 3 attempts. Last error: no such window: target window already closed
+from unknown error: web view not found
+  (Session info: chrome=138.0.7204.169)",1
+2,A robot dancing in the rain under neon lights,https://labs.google/fx/vi/tools/flow/project/0d0fb122-6760-40dc-803d-c1edc5cf18a0,pending,,,,,0

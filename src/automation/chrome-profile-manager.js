@@ -274,6 +274,7 @@ class ChromeProfileManager {
   }
 
   async createBrowserSession(profileId, options = {}) {
+    console.log(`🚀 ChromeProfileManager: Creating browser session for profile ${profileId}`);
     const profile = this.getProfile(profileId);
     if (!profile) {
       throw new Error("Profile not found");
@@ -399,6 +400,7 @@ class ChromeProfileManager {
       // Update profile status
       await this.updateProfileStatus(profileId, "active");
 
+      console.log(`✅ ChromeProfileManager: Browser session created successfully, returning driver`);
       return driver;
     } catch (error) {
       console.error(
@@ -425,18 +427,22 @@ class ChromeProfileManager {
       });
 
       // Check VEO3 login status
+      console.log("🔍 ChromeProfileManager: Checking VEO3 login status...");
       const loginStatus = await this.sessionDetector.checkVEO3LoginStatus(
         driver
       );
+      console.log(`✅ ChromeProfileManager: Login status received: ${JSON.stringify(loginStatus)}`);
 
       // Update profile with session status
       const sessionStatus = loginStatus.isLoggedIn ? "valid" : "expired";
+      console.log(`📝 ChromeProfileManager: Updating profile status to: ${sessionStatus}`);
       await this.updateProfileStatus(profileId, sessionStatus);
+      console.log("✅ ChromeProfileManager: Profile status updated");
 
       // If not logged in, keep browser open for manual login
       if (!loginStatus.isLoggedIn) {
         console.log(
-          `Profile ${profileId} not logged in. Browser left open for manual login.`
+          `❌ ChromeProfileManager: Profile ${profileId} not logged in. Browser left open for manual login.`
         );
         return {
           success: true,
@@ -450,6 +456,8 @@ class ChromeProfileManager {
           keepBrowserOpen: true,
         };
       }
+
+      console.log(`✅ ChromeProfileManager: Profile ${profileId} is logged in, proceeding...`);
 
       // If logged in, close browser and return success
       if (driver) {

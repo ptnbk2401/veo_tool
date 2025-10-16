@@ -26,6 +26,9 @@ class VideoRenderer {
     this.selectors = {
       // VEO3 Flow UI selectors (these may need to be updated based on actual VEO3 interface)
       promptInput: [
+        '#PINHOLE_TEXT_AREA_ELEMENT_ID', // Specific ID for VEO3 Vietnamese interface
+        'textarea[placeholder*="Tạo một video bằng văn bản"]', // Vietnamese placeholder text
+        'textarea.sc-2b17b33c-0.egXthD', // Specific CSS classes for the textarea
         'textarea[placeholder*="prompt"]',
         'textarea[placeholder*="describe"]',
         'input[name="prompt"]',
@@ -34,6 +37,10 @@ class VideoRenderer {
         ".text-input textarea",
       ],
       renderButton: [
+        'button.sc-d6df593a-1.eEpoHF.sc-408537d4-2.gdXWm', // Specific Vietnamese "Tạo" button
+        'button:contains("Tạo")', // Vietnamese "Create" text
+        'button[aria-label*="Tạo"]', // Vietnamese aria-label
+        'button i[class*="arrow_forward"]', // Button with arrow_forward icon
         'button[data-testid="render-button"]',
         'button:contains("Render")',
         'button:contains("Generate")',
@@ -82,23 +89,28 @@ class VideoRenderer {
       async (attempt) => {
         try {
           console.log(
-            `Starting video render for: ${
-              flowUrl || "new project"
+            `Starting video render for: ${flowUrl || "new project"
             } (attempt ${attempt})`
           );
 
           // Step 1: Create new project or navigate to existing Flow URL
           let actualFlowUrl = flowUrl;
           if (!flowUrl || flowUrl.trim() === "") {
+            console.log("🔄 No Flow URL provided, trying to use current page as project...");
             this.statusTracker.updateStatus(
-              "creating_project",
-              "Creating new VEO3 project...",
+              "using_current_page",
+              "Using current page as VEO3 project...",
               10
             );
-            actualFlowUrl = await this.createNewVEO3Project(driver);
+
+            // Navigate to VEO3 main page if not already there
+            await driver.get("https://labs.google/fx/tools/flow");
+            actualFlowUrl = await driver.getCurrentUrl();
+
+            console.log(`✅ Using current page as project: ${actualFlowUrl}`);
             this.statusTracker.updateStatus(
-              "project_created",
-              `Project created: ${actualFlowUrl}`,
+              "project_ready",
+              `Project ready: ${actualFlowUrl}`,
               20
             );
           }
@@ -167,8 +179,7 @@ class VideoRenderer {
           // Try to capture error details from the page
           const errorDetails = await this.captureErrorDetails(driver);
           const enhancedError = new Error(
-            `Video rendering failed: ${error.message}${
-              errorDetails ? ` - ${errorDetails}` : ""
+            `Video rendering failed: ${error.message}${errorDetails ? ` - ${errorDetails}` : ""
             }`
           );
 
@@ -187,26 +198,51 @@ class VideoRenderer {
 
   async createNewVEO3Project(driver, options = {}) {
     try {
-      console.log("Creating new VEO3 project...");
+      console.log("🚀 Creating new VEO3 project... [UPDATED VERSION]");
 
       // Navigate to VEO3 main page
+      console.log("📍 Navigating to VEO3 main page...");
       await driver.get("https://labs.google/fx/tools/flow");
 
       // Wait for page to load - more flexible approach
+      console.log("⏳ Waiting for page to load...");
       try {
-        await driver.wait(until.titleContains("VEO"), 10000);
+        console.log("🔍 Looking for 'Flow' in page title...");
+        await driver.wait(until.titleContains("Flow"), 10000);
+        console.log("✅ Flow title found successfully!");
       } catch (titleError) {
-        console.log("VEO title not found, checking if page loaded anyway...");
-        // Check if page loaded by looking for body element
-        await driver.wait(until.elementLocated(By.css("body")), 10000);
+        console.log("❌ Flow title not found, checking if page loaded anyway...");
+        console.log(`Title error details: ${titleError.name} - ${titleError.message}`);
 
-        // Get actual title for debugging
+        try {
+          // Check if page loaded by looking for body element
+          console.log("🔍 Looking for body element...");
+          await driver.wait(until.elementLocated(By.css("body")), 10000);
+          console.log("✅ Body element found, page seems loaded");
+        } catch (bodyError) {
+          console.log("❌ Body element not found either, page may not be loading");
+          console.log(`Body error details: ${bodyError.name} - ${bodyError.message}`);
+          console.log(`Body error stack: ${bodyError.stack}`);
+          throw new Error(`Page failed to load: ${bodyError.message}`);
+        }
+
+        // Get actual title and URL for debugging
+        console.log("📋 Getting page details for debugging...");
         const actualTitle = await driver.getTitle();
-        console.log(`Page loaded with title: "${actualTitle}"`);
+        const currentUrl = await driver.getCurrentUrl();
+        console.log(`📄 Page title: "${actualTitle}"`);
+        console.log(`🌐 Current URL: ${currentUrl}`);
+
+        // Check if we're on the right domain
+        if (!currentUrl.includes("labs.google") && !currentUrl.includes("google")) {
+          throw new Error(`Unexpected page loaded: ${currentUrl}`);
+        }
       }
 
       // Look for "New Project" or "Create" button
       const newProjectSelectors = [
+        'button.sc-d6df593a-1.csfEZL.sc-a38764c7-0.fXsrxE', // Specific selector for "Dự án mới" button
+        'button:contains("Dự án mới")', // Vietnamese "New Project" text
         'button:contains("New")',
         'button:contains("Create")',
         'button:contains("Start")',
@@ -236,11 +272,11 @@ class VideoRenderer {
       if (!newProjectButton) {
         console.log("No button found with CSS selectors, trying XPath...");
 
-        // If no specific button found, try to find any clickable element with "new" text
+        // If no specific button found, try to find any clickable element with "new" text (including Vietnamese)
         try {
           newProjectButton = await driver.findElement(
             By.xpath(
-              "//button[contains(translate(text(), 'NEW', 'new'), 'new')] | //a[contains(translate(text(), 'NEW', 'new'), 'new')]"
+              "//button[contains(text(), 'Dự án mới') or contains(translate(text(), 'NEW', 'new'), 'new')] | //a[contains(text(), 'Dự án mới') or contains(translate(text(), 'NEW', 'new'), 'new')]"
             )
           );
           console.log("✅ Found button with XPath");
@@ -309,8 +345,22 @@ class VideoRenderer {
 
       return projectUrl;
     } catch (error) {
-      console.error("Failed to create new VEO3 project:", error);
-      throw new Error(`Failed to create new VEO3 project: ${error.message}`);
+      console.log("💥 UNEXPECTED ERROR in createNewVEO3Project:");
+      console.log(`Error name: ${error.name}`);
+      console.log(`Error message: ${error.message}`);
+      console.log(`Error stack: ${error.stack}`);
+
+      // Try to get current page info for debugging
+      try {
+        const currentUrl = await driver.getCurrentUrl();
+        const pageTitle = await driver.getTitle();
+        console.log(`Current URL when error occurred: ${currentUrl}`);
+        console.log(`Page title when error occurred: ${pageTitle}`);
+      } catch (debugError) {
+        console.log("Could not get page info for debugging");
+      }
+
+      throw error; // Re-throw the original error
     }
   }
 
@@ -550,139 +600,197 @@ class VideoRenderer {
   }
 
   async navigateToFlow(driver, flowUrl) {
-    try {
-      console.log(`Navigating to: ${flowUrl}`);
+    console.log(`Navigating to: ${flowUrl}`);
 
-      await driver.get(flowUrl);
+    await driver.get(flowUrl);
 
-      // Wait for page to load
-      await driver.wait(until.titleMatches(/.+/), this.timeouts.pageLoad);
+    // Wait for page to load
+    await driver.wait(until.titleMatches(/.+/), this.timeouts.pageLoad);
 
-      // Wait a bit more for dynamic content to load
-      await this.sleep(2000);
+    // Wait a bit more for dynamic content to load
+    await this.sleep(2000);
 
-      // Check if we're on the right page
-      const currentUrl = await driver.getCurrentUrl();
-      if (!currentUrl.includes("veo") && !currentUrl.includes("flow")) {
-        throw new Error(`Unexpected page loaded: ${currentUrl}`);
-      }
-
-      console.log("Successfully navigated to Flow page");
-    } catch (error) {
-      throw new Error(`Failed to navigate to Flow URL: ${error.message}`);
+    // Check if we're on the right page
+    const currentUrl = await driver.getCurrentUrl();
+    if (!currentUrl.includes("flow") && !currentUrl.includes("labs.google")) {
+      throw new Error(`Unexpected page loaded: ${currentUrl}`);
     }
+
+    console.log("Successfully navigated to Flow page");
   }
 
   async inputPrompt(driver, prompt) {
-    try {
-      console.log("Looking for prompt input field...");
+    console.log("Looking for prompt input field...");
 
-      let promptElement = null;
+    let promptElement = null;
 
-      // Try to find prompt input using multiple selectors
-      for (const selector of this.selectors.promptInput) {
+    // Try to find prompt input using multiple selectors
+    for (const selector of this.selectors.promptInput) {
+      console.log(`Trying selector: ${selector}`);
+
+      try {
+        promptElement = await driver.wait(
+          until.elementLocated(By.css(selector)),
+          this.timeouts.elementWait
+        );
+
+        // Check if element is visible and enabled
+        const isDisplayed = await promptElement.isDisplayed();
+        const isEnabled = await promptElement.isEnabled();
+
+        if (isDisplayed && isEnabled) {
+          console.log(`✅ Found prompt input with selector: ${selector}`);
+          break;
+        } else {
+          console.log(`❌ Element found but not usable (displayed: ${isDisplayed}, enabled: ${isEnabled})`);
+          promptElement = null;
+        }
+      } catch (e) {
+        console.log(`❌ Selector failed: ${selector} - ${e.message}`);
+        promptElement = null;
+      }
+    }
+
+    if (!promptElement) {
+      // Debug: Try to find any textarea or input elements on the page
+      console.log("No prompt input found with specific selectors. Searching for any text inputs...");
+
+      const allTextInputs = await driver.findElements(By.css('textarea, input[type="text"], input:not([type])'));
+      console.log(`Found ${allTextInputs.length} text input elements on page`);
+
+      for (let i = 0; i < Math.min(allTextInputs.length, 5); i++) {
         try {
-          promptElement = await driver.wait(
-            until.elementLocated(By.css(selector)),
-            this.timeouts.elementWait
-          );
+          const tagName = await allTextInputs[i].getTagName();
+          const placeholder = await allTextInputs[i].getAttribute('placeholder') || '';
+          const id = await allTextInputs[i].getAttribute('id') || '';
+          const className = await allTextInputs[i].getAttribute('class') || '';
+          const isDisplayed = await allTextInputs[i].isDisplayed();
 
-          // Check if element is visible and enabled
-          const isDisplayed = await promptElement.isDisplayed();
-          const isEnabled = await promptElement.isEnabled();
+          console.log(`Input ${i + 1}: <${tagName}> id="${id}" class="${className}" placeholder="${placeholder}" visible=${isDisplayed}`);
 
-          if (isDisplayed && isEnabled) {
-            console.log(`Found prompt input with selector: ${selector}`);
+          // Try to use the first visible textarea
+          if (tagName === 'textarea' && isDisplayed) {
+            promptElement = allTextInputs[i];
+            console.log(`✅ Using fallback textarea element`);
             break;
           }
-        } catch (e) {
-          // Continue to next selector
-          promptElement = null;
+        } catch (debugError) {
+          console.log(`Could not inspect input ${i + 1}: ${debugError.message}`);
         }
       }
 
       if (!promptElement) {
+        // Get current URL and page title for debugging
+        const currentUrl = await driver.getCurrentUrl();
+        const pageTitle = await driver.getTitle();
+        console.log(`DEBUG: Current URL: ${currentUrl}`);
+        console.log(`DEBUG: Page Title: ${pageTitle}`);
+
+        // Get page source snippet for debugging
+        const pageSource = await driver.getPageSource();
+        console.log(`DEBUG: Page source length: ${pageSource.length}`);
+        console.log(`DEBUG: Page contains 'textarea': ${pageSource.includes('textarea')}`);
+        console.log(`DEBUG: Page contains 'PINHOLE_TEXT_AREA': ${pageSource.includes('PINHOLE_TEXT_AREA')}`);
+
         throw new Error("Could not find prompt input field");
       }
-
-      // Clear existing text and input new prompt
-      await promptElement.clear();
-      await promptElement.sendKeys(prompt);
-
-      // Verify the text was entered
-      const enteredText =
-        (await promptElement.getAttribute("value")) ||
-        (await promptElement.getText());
-      if (!enteredText.includes(prompt.substring(0, 20))) {
-        throw new Error("Failed to enter prompt text correctly");
-      }
-
-      console.log("Successfully entered prompt");
-    } catch (error) {
-      throw new Error(`Failed to input prompt: ${error.message}`);
     }
+
+    // Clear existing text and input new prompt
+    await promptElement.clear();
+    await promptElement.sendKeys(prompt);
+
+    // Verify the text was entered
+    const enteredText =
+      (await promptElement.getAttribute("value")) ||
+      (await promptElement.getText());
+    if (!enteredText.includes(prompt.substring(0, 20))) {
+      throw new Error("Failed to enter prompt text correctly");
+    }
+
+    console.log("Successfully entered prompt");
   }
 
   async clickRender(driver) {
-    try {
-      console.log("Looking for render button...");
+    console.log("Looking for render button...");
 
-      let renderButton = null;
+    let renderButton = null;
 
-      // Try to find render button using multiple selectors
-      for (const selector of this.selectors.renderButton) {
-        try {
-          // For text-based selectors, we need to use XPath
-          if (selector.includes("contains")) {
-            const xpathSelector = `//${selector
-              .replace('button:contains("', 'button[contains(text(), "')
-              .replace('")', '")]')}`;
-            renderButton = await driver.wait(
-              until.elementLocated(By.xpath(xpathSelector)),
-              this.timeouts.elementWait
-            );
-          } else {
-            renderButton = await driver.wait(
-              until.elementLocated(By.css(selector)),
-              this.timeouts.elementWait
-            );
-          }
+    // Try to find render button using multiple selectors
+    for (const selector of this.selectors.renderButton) {
+      console.log(`Trying render button selector: ${selector}`);
 
-          // Check if button is clickable
-          const isDisplayed = await renderButton.isDisplayed();
-          const isEnabled = await renderButton.isEnabled();
+      try {
+        // For text-based selectors, we need to use XPath
+        if (selector.includes("contains")) {
+          const xpathSelector = `//${selector
+            .replace('button:contains("', 'button[contains(text(), "')
+            .replace('")', '")]')}`;
+          renderButton = await driver.wait(
+            until.elementLocated(By.xpath(xpathSelector)),
+            this.timeouts.elementWait
+          );
+        } else {
+          renderButton = await driver.wait(
+            until.elementLocated(By.css(selector)),
+            this.timeouts.elementWait
+          );
+        }
 
-          if (isDisplayed && isEnabled) {
-            console.log(`Found render button with selector: ${selector}`);
-            break;
-          }
-        } catch (e) {
-          // Continue to next selector
+        // Check if button is clickable
+        const isDisplayed = await renderButton.isDisplayed();
+        const isEnabled = await renderButton.isEnabled();
+
+        if (isDisplayed && isEnabled) {
+          console.log(`✅ Found render button with selector: ${selector}`);
+          break;
+        } else {
+          console.log(`❌ Render button found but not usable (displayed: ${isDisplayed}, enabled: ${isEnabled})`);
           renderButton = null;
+        }
+      } catch (e) {
+        console.log(`❌ Render button selector failed: ${selector} - ${e.message}`);
+        renderButton = null;
+      }
+    }
+
+    if (!renderButton) {
+      // Debug: Try to find any buttons on the page
+      console.log("No render button found with specific selectors. Searching for any buttons...");
+
+      const allButtons = await driver.findElements(By.css('button, input[type="submit"], input[type="button"]'));
+      console.log(`Found ${allButtons.length} buttons on page`);
+
+      for (let i = 0; i < Math.min(allButtons.length, 10); i++) {
+        try {
+          const buttonText = await allButtons[i].getText();
+          const buttonType = await allButtons[i].getAttribute('type') || '';
+          const buttonClass = await allButtons[i].getAttribute('class') || '';
+          const isDisplayed = await allButtons[i].isDisplayed();
+
+          console.log(`Button ${i + 1}: "${buttonText}" type="${buttonType}" class="${buttonClass}" visible=${isDisplayed}`);
+        } catch (debugError) {
+          console.log(`Could not inspect button ${i + 1}: ${debugError.message}`);
         }
       }
 
-      if (!renderButton) {
-        throw new Error("Could not find render button");
-      }
-
-      // Scroll button into view if needed
-      await driver.executeScript(
-        "arguments[0].scrollIntoView(true);",
-        renderButton
-      );
-      await this.sleep(500);
-
-      // Click the render button
-      await renderButton.click();
-
-      console.log("Successfully clicked render button");
-
-      // Wait a moment for the render to start
-      await this.sleep(2000);
-    } catch (error) {
-      throw new Error(`Failed to click render button: ${error.message}`);
+      throw new Error("Could not find render button");
     }
+
+    // Scroll button into view if needed
+    await driver.executeScript(
+      "arguments[0].scrollIntoView(true);",
+      renderButton
+    );
+    await this.sleep(500);
+
+    // Click the render button
+    await renderButton.click();
+
+    console.log("Successfully clicked render button");
+
+    // Wait a moment for the render to start
+    await this.sleep(2000);
   }
 
   async monitorProgress(driver, timeout) {
@@ -727,20 +835,79 @@ class VideoRenderer {
 
   async checkRenderComplete(driver) {
     try {
-      // Look for download button or completed status
-      for (const selector of this.selectors.downloadButton) {
+      console.log("🔍 Checking render completion status...");
+
+      // VEO3 specific completion indicators based on actual HTML structure
+      const veo3CompletionSelectors = [
+        // Specific selectors from actual VEO3 interface
+        'span:contains("Tải xuống")', // Vietnamese download text in span
+        'button[aria-label*="Tải xuống"]', // Vietnamese download aria-label  
+        'i.google-symbols:contains("download")', // Google symbols download icon
+        'i.sc-95c4f607-0:contains("download")', // Specific icon class with download
+        // Generic fallbacks
+        'button:contains("Download")',
+        'button:contains("Tải xuống")',
+        'a[download]',
+        '.download-btn',
+        '[data-testid="download-button"]',
+      ];
+
+      // Check for download buttons (strongest indicator of completion)
+      for (const selector of veo3CompletionSelectors) {
         try {
+          let element;
           if (selector.includes("contains")) {
             const xpathSelector = `//${selector
               .replace('button:contains("', 'button[contains(text(), "')
               .replace('")', '")]')}`;
-            const element = await driver.findElement(By.xpath(xpathSelector));
-            if (await element.isDisplayed()) {
-              return true;
-            }
+            element = await driver.findElement(By.xpath(xpathSelector));
           } else {
-            const element = await driver.findElement(By.css(selector));
-            if (await element.isDisplayed()) {
+            element = await driver.findElement(By.css(selector));
+          }
+
+          if (await element.isDisplayed()) {
+            console.log(`✅ Render complete! Found download element: ${selector}`);
+            return true;
+          }
+        } catch (e) {
+          // Continue checking
+        }
+      }
+
+      // Check for video preview/player (strongest indicator of completion)
+      const videoIndicators = [
+        'video[src*="storage.googleapis.com"]', // VEO3 specific video with Google storage URL
+        'video[src]', // Any video with src attribute
+        'video', // HTML5 video element
+        '.video-player',
+        '.video-preview',
+        '[data-testid="video-player"]',
+        'canvas', // Video canvas
+      ];
+
+      for (const selector of videoIndicators) {
+        try {
+          const element = await driver.findElement(By.css(selector));
+          if (await element.isDisplayed()) {
+            console.log(`🎥 Video element found: ${selector}`);
+
+            // Check if video has valid src
+            const src = await element.getAttribute('src');
+            if (src && src.length > 0) {
+              console.log(`✅ Video has valid src: ${src.substring(0, 100)}...`);
+
+              // Additional check for duration if available
+              try {
+                const duration = await element.getAttribute('duration');
+                if (duration && parseFloat(duration) > 0) {
+                  console.log(`✅ Video ready with duration: ${duration}s`);
+                } else {
+                  console.log(`✅ Video element ready (duration not yet available)`);
+                }
+              } catch (e) {
+                console.log(`✅ Video element ready (could not get duration)`);
+              }
+
               return true;
             }
           }
@@ -749,27 +916,64 @@ class VideoRenderer {
         }
       }
 
-      // Check for other completion indicators
-      try {
-        const completionIndicators = [
-          ".render-complete",
-          ".status-complete",
-          '[data-status="complete"]',
-          ".success-message",
-        ];
+      // Check for video duration display (indicates video is processed)
+      const durationIndicators = [
+        '.sc-c194362c-4', // Specific class for duration display from HTML
+        'p:contains("0:")', // Duration format like "0:08"
+        '[class*="duration"]',
+        '[class*="time"]',
+      ];
 
-        for (const selector of completionIndicators) {
-          const element = await driver.findElement(By.css(selector));
+      for (const selector of durationIndicators) {
+        try {
+          let element;
+          if (selector.includes("contains")) {
+            const xpathSelector = `//${selector
+              .replace('p:contains("', 'p[contains(text(), "')
+              .replace('")', '")]')}`;
+            element = await driver.findElement(By.xpath(xpathSelector));
+          } else {
+            element = await driver.findElement(By.css(selector));
+          }
+
           if (await element.isDisplayed()) {
+            const text = await element.getText();
+            // Check if it's a valid duration format (e.g., "0:08")
+            if (text.match(/^\d+:\d{2}$/)) {
+              console.log(`✅ Video duration found: "${text}" - Video is ready!`);
+              return true;
+            }
+          }
+        } catch (e) {
+          // Continue checking
+        }
+      }
+
+      // Check for completion status text
+      const statusTexts = [
+        'text()*="hoàn thành"', // Vietnamese "completed"
+        'text()*="completed"',
+        'text()*="finished"',
+        'text()*="ready"',
+        'text()*="done"',
+      ];
+
+      for (const textPattern of statusTexts) {
+        try {
+          const element = await driver.findElement(By.xpath(`//*[contains(${textPattern})]`));
+          if (await element.isDisplayed()) {
+            const text = await element.getText();
+            console.log(`✅ Completion status found: "${text}"`);
             return true;
           }
+        } catch (e) {
+          // Continue checking
         }
-      } catch (e) {
-        // No completion indicators found
       }
 
       return false;
     } catch (error) {
+      console.log(`❌ Error checking render completion: ${error.message}`);
       return false;
     }
   }
@@ -1058,8 +1262,7 @@ class VideoRenderer {
             });
           }
           console.log(
-            `Progress update: ${
-              progressInfo.message || progressInfo.percentage || "Rendering..."
+            `Progress update: ${progressInfo.message || progressInfo.percentage || "Rendering..."
             }`
           );
         }
@@ -1086,30 +1289,44 @@ class VideoRenderer {
         percentage: null,
         message: null,
         stage: null,
+        estimatedTime: null,
       };
 
-      // Try to get percentage from progress bars
-      const progressSelectors = [
+      console.log("📊 Getting detailed progress info...");
+
+      // VEO3 specific progress indicators
+      const veo3ProgressSelectors = [
         ".progress-bar",
         ".render-progress",
         '[role="progressbar"]',
         ".percentage",
+        '[class*="progress"]',
+        '[class*="loading"]',
       ];
 
-      for (const selector of progressSelectors) {
+      // Check for progress bars
+      for (const selector of veo3ProgressSelectors) {
         try {
           const element = await driver.findElement(By.css(selector));
           if (await element.isDisplayed()) {
             const ariaValue = await element.getAttribute("aria-valuenow");
+            const ariaMax = await element.getAttribute("aria-valuemax");
             const styleWidth = await element.getAttribute("style");
             const textContent = await element.getText();
 
-            if (ariaValue) {
+            console.log(`📊 Progress element found: ${selector}`);
+            console.log(`  - aria-valuenow: ${ariaValue}`);
+            console.log(`  - style: ${styleWidth}`);
+            console.log(`  - text: ${textContent}`);
+
+            if (ariaValue && ariaMax) {
+              progressData.percentage = Math.round((parseInt(ariaValue) / parseInt(ariaMax)) * 100);
+            } else if (ariaValue) {
               progressData.percentage = parseInt(ariaValue);
             } else if (styleWidth && styleWidth.includes("width:")) {
-              const match = styleWidth.match(/width:\s*(\d+)%/);
+              const match = styleWidth.match(/width:\s*(\d+(?:\.\d+)?)%/);
               if (match) {
-                progressData.percentage = parseInt(match[1]);
+                progressData.percentage = Math.round(parseFloat(match[1]));
               }
             } else if (textContent && textContent.includes("%")) {
               const match = textContent.match(/(\d+)%/);
@@ -1129,10 +1346,66 @@ class VideoRenderer {
         }
       }
 
-      return progressData.percentage !== null || progressData.message
-        ? progressData
-        : null;
+      // Check for status messages
+      const statusSelectors = [
+        '[class*="status"]',
+        '[class*="message"]',
+        '[class*="info"]',
+        '.render-status',
+        '.processing-status',
+      ];
+
+      for (const selector of statusSelectors) {
+        try {
+          const elements = await driver.findElements(By.css(selector));
+          for (const element of elements) {
+            if (await element.isDisplayed()) {
+              const text = await element.getText();
+              if (text && text.trim().length > 0) {
+                console.log(`📝 Status message: "${text}"`);
+                if (!progressData.message) {
+                  progressData.message = text;
+                }
+
+                // Extract stage info
+                if (text.includes("đang xử lý") || text.includes("processing")) {
+                  progressData.stage = "processing";
+                } else if (text.includes("đang tạo") || text.includes("generating")) {
+                  progressData.stage = "generating";
+                } else if (text.includes("hoàn thành") || text.includes("complete")) {
+                  progressData.stage = "completed";
+                }
+
+                // Extract time estimates
+                const timeMatch = text.match(/(\d+)\s*(phút|giây|minute|second)/i);
+                if (timeMatch) {
+                  progressData.estimatedTime = timeMatch[0];
+                }
+
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          // Continue
+        }
+      }
+
+      // Check current page state
+      try {
+        const currentUrl = await driver.getCurrentUrl();
+        const pageTitle = await driver.getTitle();
+        console.log(`🌐 Current state - URL: ${currentUrl}, Title: ${pageTitle}`);
+      } catch (e) {
+        // Ignore
+      }
+
+      const hasProgress = progressData.percentage !== null || progressData.message || progressData.stage;
+      console.log(`📊 Progress result: ${hasProgress ? JSON.stringify(progressData) : 'No progress info found'}`);
+
+      return hasProgress ? progressData : null;
     } catch (error) {
+      console.log(`❌ Error getting progress: ${error.message}`);
       return null;
     }
   }

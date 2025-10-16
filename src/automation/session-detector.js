@@ -20,22 +20,51 @@ class SessionDetector {
   }
 
   async checkVEO3LoginStatus(driver, baseUrl = this.veo3BaseUrl) {
-    try {
-      // Navigate to VEO3 main page
-      await driver.get(baseUrl);
+    const timeout = 30000; // 30 seconds timeout
 
-      // Wait for page to load (more flexible timeout)
+    return Promise.race([
+      this._checkVEO3LoginStatusInternal(driver, baseUrl),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SessionDetector timeout after 30 seconds')), timeout)
+      )
+    ]);
+  }
+
+  async _checkVEO3LoginStatusInternal(driver, baseUrl = this.veo3BaseUrl) {
+    try {
+      console.log("🔍 SessionDetector: Checking VEO3 login status...");
+      // Navigate to VEO3 main page
+      console.log(`📍 SessionDetector: Navigating to ${baseUrl}`);
+
       try {
-        await driver.wait(until.titleContains("VEO"), 5000);
-      } catch (titleError) {
-        console.log("VEO title not found, checking page anyway...");
+        await driver.get(baseUrl);
+        console.log("✅ SessionDetector: Navigation completed");
+      } catch (navError) {
+        console.log("❌ SessionDetector: Navigation failed");
+        console.log(`Navigation error: ${navError.name} - ${navError.message}`);
+        throw navError;
       }
 
+      // Wait for page to load (more flexible timeout)
+      console.log("⏳ SessionDetector: Waiting for page to load...");
+      try {
+        await driver.wait(until.titleContains("Flow"), 5000);
+        console.log("✅ SessionDetector: Flow title found");
+      } catch (titleError) {
+        console.log("❌ SessionDetector: Flow title not found, checking page anyway...");
+        console.log(`Title error: ${titleError.name} - ${titleError.message}`);
+      }
+
+      console.log("🌐 SessionDetector: Getting current URL...");
       const currentUrl = await driver.getCurrentUrl();
+      console.log(`Current URL: ${currentUrl}`);
 
       // Check URL indicators first (fastest)
+      console.log("🔍 SessionDetector: Checking URL indicators...");
       const urlStatus = this.checkUrlIndicators(currentUrl);
+      console.log(`URL status result: ${JSON.stringify(urlStatus)}`);
       if (urlStatus.isLoggedIn !== null) {
+        console.log("✅ SessionDetector: Login status determined by URL");
         return {
           isLoggedIn: urlStatus.isLoggedIn,
           method: "url",
@@ -45,8 +74,11 @@ class SessionDetector {
       }
 
       // Check DOM indicators
+      console.log("🔍 SessionDetector: Checking DOM indicators...");
       const domStatus = await this.checkDOMIndicators(driver);
+      console.log(`DOM status result: ${JSON.stringify(domStatus)}`);
       if (domStatus.isLoggedIn !== null) {
+        console.log("✅ SessionDetector: Login status determined by DOM");
         return {
           isLoggedIn: domStatus.isLoggedIn,
           method: "dom",
@@ -56,8 +88,11 @@ class SessionDetector {
       }
 
       // Check cookies as fallback
+      console.log("🔍 SessionDetector: Checking cookie indicators...");
       const cookieStatus = await this.checkCookieIndicators(driver);
+      console.log(`Cookie status result: ${JSON.stringify(cookieStatus)}`);
 
+      console.log("✅ SessionDetector: Login status determined by cookies");
       return {
         isLoggedIn: cookieStatus.isLoggedIn,
         method: "cookie",
@@ -65,7 +100,8 @@ class SessionDetector {
         userInfo: cookieStatus.userInfo,
       };
     } catch (error) {
-      console.error("Error checking VEO3 login status:", error);
+      console.error("💥 SessionDetector ERROR:", error.name, "-", error.message);
+      console.error("Error stack:", error.stack);
       return {
         isLoggedIn: false,
         method: "error",
@@ -96,9 +132,11 @@ class SessionDetector {
 
   async checkDOMIndicators(driver) {
     try {
+      console.log("🔍 SessionDetector: Checking for logged-in elements...");
       // Check for logged-in elements
       for (const indicator of this.loginIndicators.loggedIn) {
         if (indicator.type === "element") {
+          console.log(`Checking logged-in selector: ${indicator.selector}`);
           try {
             const element = await driver.findElement(
               By.css(indicator.selector)
@@ -126,9 +164,11 @@ class SessionDetector {
         }
       }
 
+      console.log("🔍 SessionDetector: Checking for logged-out elements...");
       // Check for logged-out elements
       for (const indicator of this.loginIndicators.loggedOut) {
         if (indicator.type === "element") {
+          console.log(`Checking logged-out selector: ${indicator.selector}`);
           try {
             const element = await driver.findElement(
               By.css(indicator.selector)

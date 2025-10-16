@@ -1,12 +1,12 @@
 {
-  "bdc08a05-c894-4057-9a05-c3de17057cef": {
-    "id": "bdc08a05-c894-4057-9a05-c3de17057cef",
-    "name": "VEO Test Profile",
-    "path": "/Users/nals_macbook_206/Library/Application Support/Google/Chrome/Default",
+  "2abc895f-780f-4864-8af0-711db26cf62e": {
+    "id": "2abc895f-780f-4864-8af0-711db26cf62e",
+    "name": "Nguyen",
+    "path": "C:\\Users\\NguyenPT\\AppData\\Local\\Google\\Chrome\\User Data\\VEO3_Profile_Nguyen_1760632652967",
     "isActive": false,
-    "lastSessionCheck": "2025-10-16T09:53:08.106Z",
-    "sessionStatus": "valid",
-    "createdAt": "2025-10-16T09:53:01.059Z",
-    "updatedAt": "2025-10-16T09:53:08.106Z"
+    "lastSessionCheck": "2025-10-16T17:52:53.875Z",
+    "sessionStatus": "active",
+    "createdAt": "2025-10-16T16:37:32.968Z",
+    "updatedAt": "2025-10-16T17:52:53.875Z"
   }
 }

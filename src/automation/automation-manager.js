@@ -115,6 +115,7 @@ class AutomationManager {
 
         try {
           // Create browser session
+          console.log("🚀 AutomationManager: Creating browser session...");
           this.driver =
             await automationManager.profileManager.createBrowserSession(
               profileId,
@@ -126,6 +127,7 @@ class AutomationManager {
                   automationManager.configManager.get("browser.windowSize"),
               }
             );
+          console.log("✅ AutomationManager: Browser session received, starting processing loop...");
 
           // Start processing loop
           await this.processLoop();
@@ -139,6 +141,7 @@ class AutomationManager {
       },
 
       async processLoop() {
+        console.log("🔄 AutomationManager: Starting process loop...");
         while (this.isRunning) {
           try {
             // Check if job is paused
@@ -148,14 +151,17 @@ class AutomationManager {
             }
 
             // Get next pending item
+            console.log("📋 AutomationManager: Getting next pending item...");
             const nextItem =
               automationManager.batchProcessor.getNextPendingItem(jobId);
             if (!nextItem) {
               // No more items to process
+              console.log("✅ AutomationManager: No more items, completing job...");
               await this.completeJob();
               break;
             }
 
+            console.log(`🎬 AutomationManager: Processing item ${nextItem.ID}: "${nextItem.Prompt.substring(0, 50)}..."`);
             // Process the item
             await this.processItem(nextItem);
           } catch (error) {
@@ -187,6 +193,10 @@ class AutomationManager {
           );
 
           // Render video with video settings
+          console.log(`🎥 AutomationManager: Calling videoRenderer.renderVideo for item ${item.ID}`);
+          console.log(`Flow URL: "${item.Flow_URL}"`);
+          console.log(`Prompt: "${item.Prompt}"`);
+          console.log(`📋 DEBUG: Full item data:`, JSON.stringify(item, null, 2));
           const result = await automationManager.videoRenderer.renderVideo(
             this.driver,
             item.Flow_URL,
@@ -254,14 +264,14 @@ class AutomationManager {
 
       async pause() {
         this.isPaused = true;
-        await this.batchProcessor.pauseJob(jobId);
-        this.logger.info(`Job ${jobId} paused`);
+        await automationManager.batchProcessor.pauseJob(jobId);
+        automationManager.logger.info(`Job ${jobId} paused`);
       },
 
       async resume() {
         this.isPaused = false;
-        await this.batchProcessor.resumeJob(jobId);
-        this.logger.info(`Job ${jobId} resumed`);
+        await automationManager.batchProcessor.resumeJob(jobId);
+        automationManager.logger.info(`Job ${jobId} resumed`);
       },
 
       async stop() {
@@ -279,9 +289,9 @@ class AutomationManager {
         }
 
         // Update job status
-        await this.batchProcessor.stopJob(jobId);
+        await automationManager.batchProcessor.stopJob(jobId);
 
-        this.logger.info(`Job ${jobId} stopped`);
+        automationManager.logger.info(`Job ${jobId} stopped`);
       },
 
       async completeJob() {
@@ -298,9 +308,9 @@ class AutomationManager {
         }
 
         // Complete job
-        const completedJob = await this.batchProcessor.completeJob(jobId);
+        const completedJob = await automationManager.batchProcessor.completeJob(jobId);
 
-        this.logger.logJobComplete(jobId, {
+        automationManager.logger.logJobComplete(jobId, {
           success: true,
           completed: completedJob.progress.completed,
           failed: completedJob.progress.failed,
@@ -423,9 +433,9 @@ class AutomationManager {
       ...job,
       worker: worker
         ? {
-            isRunning: worker.isRunning,
-            isPaused: worker.isPaused,
-          }
+          isRunning: worker.isRunning,
+          isPaused: worker.isPaused,
+        }
         : null,
     };
   }
@@ -435,9 +445,9 @@ class AutomationManager {
       ...job,
       worker: this.jobWorkers.has(job.id)
         ? {
-            isRunning: this.jobWorkers.get(job.id).isRunning,
-            isPaused: this.jobWorkers.get(job.id).isPaused,
-          }
+          isRunning: this.jobWorkers.get(job.id).isRunning,
+          isPaused: this.jobWorkers.get(job.id).isPaused,
+        }
         : null,
     }));
   }

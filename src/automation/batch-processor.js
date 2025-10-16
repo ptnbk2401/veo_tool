@@ -280,12 +280,40 @@ class BatchProcessor {
   }
 
   getNextPendingItem(jobId) {
+    console.log(`🔍 BatchProcessor: Looking for next pending item in job ${jobId}`);
     const job = this.activeJobs.get(jobId);
     if (!job) {
+      console.log(`❌ BatchProcessor: Job ${jobId} not found in activeJobs`);
+      console.log(`Available jobs: ${Array.from(this.activeJobs.keys()).join(', ')}`);
       return null;
     }
 
-    return this.csvProcessor.getNextPendingRow(job.data);
+    console.log(`📊 BatchProcessor: Job found, data length: ${job.data ? job.data.length : 'undefined'}`);
+    if (job.data && job.data.length > 0) {
+      console.log(`First item status: ${job.data[0].Status}`);
+      const pendingCount = job.data.filter(item => item.Status === 'pending').length;
+      console.log(`Pending items: ${pendingCount}`);
+      
+      // If no pending items but we have error items, reset them to pending for retry
+      if (pendingCount === 0) {
+        const errorItems = job.data.filter(item => item.Status === 'error');
+        if (errorItems.length > 0) {
+          console.log(`🔄 BatchProcessor: No pending items, resetting ${errorItems.length} error items to pending for retry`);
+          errorItems.forEach(item => {
+            item.Status = 'pending';
+            item.StartTime = null;
+            item.EndTime = null;
+            item.Error = null;
+            item.Attempts = 0;
+          });
+          console.log(`✅ BatchProcessor: Reset complete, now have ${job.data.filter(item => item.Status === 'pending').length} pending items`);
+        }
+      }
+    }
+
+    const nextItem = this.csvProcessor.getNextPendingRow(job.data);
+    console.log(`📋 BatchProcessor: Next item result: ${nextItem ? `ID ${nextItem.ID}` : 'null'}`);
+    return nextItem;
   }
 
   getRenderingItems(jobId) {
