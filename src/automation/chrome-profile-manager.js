@@ -56,18 +56,32 @@ class ChromeProfileManager {
       throw new Error("Profile name and path are required");
     }
 
+    // Normalize path to avoid duplicate path issues
+    const normalizedPath = path.resolve(profilePath);
+
     // Validate profile path exists
-    if (!(await fs.pathExists(profilePath))) {
-      throw new Error(`Profile path does not exist: ${profilePath}`);
+    if (!(await fs.pathExists(normalizedPath))) {
+      throw new Error(`Profile path does not exist: ${normalizedPath}`);
     }
 
-    // Check if profile already exists
+    // Check if profile name already exists (names must be unique)
     for (const [id, profile] of this.profiles) {
-      if (profile.path === profilePath) {
-        throw new Error("Profile with this path already exists");
+      if (profile.name.toLowerCase() === name.toLowerCase()) {
+        throw new Error(
+          `Profile with name "${name}" already exists. Please choose a different name.`
+        );
       }
-      if (profile.name === name) {
-        throw new Error("Profile with this name already exists");
+    }
+
+    // Check if exact same path already exists with same name
+    for (const [id, profile] of this.profiles) {
+      if (
+        path.resolve(profile.path) === normalizedPath &&
+        profile.name === name
+      ) {
+        throw new Error(
+          `Profile "${name}" with this exact path already exists`
+        );
       }
     }
 
@@ -75,7 +89,7 @@ class ChromeProfileManager {
     const profile = {
       id: profileId,
       name,
-      path: profilePath,
+      path: normalizedPath,
       isActive: false,
       lastSessionCheck: null,
       sessionStatus: "unknown",
@@ -111,6 +125,53 @@ class ChromeProfileManager {
 
   listProfiles() {
     return Array.from(this.profiles.values());
+  }
+
+  findProfileByPath(profilePath) {
+    const normalizedPath = path.resolve(profilePath);
+    for (const [id, profile] of this.profiles) {
+      if (path.resolve(profile.path) === normalizedPath) {
+        return profile;
+      }
+    }
+    return null;
+  }
+
+  findProfileByName(name) {
+    for (const [id, profile] of this.profiles) {
+      if (profile.name.toLowerCase() === name.toLowerCase()) {
+        return profile;
+      }
+    }
+    return null;
+  }
+
+  async addOrUpdateProfile(profileData) {
+    const { name, path: profilePath } = profileData;
+
+    // Check if profile with this path already exists
+    const existingProfile = this.findProfileByPath(profilePath);
+
+    if (existingProfile) {
+      // Update existing profile with new name if different
+      if (existingProfile.name !== name) {
+        // Check if new name conflicts with other profiles
+        const nameConflict = this.findProfileByName(name);
+        if (nameConflict && nameConflict.id !== existingProfile.id) {
+          throw new Error(
+            `Profile name "${name}" is already used by another profile`
+          );
+        }
+
+        return await this.updateProfile(existingProfile.id, { name });
+      }
+
+      // Return existing profile if name is same
+      return existingProfile;
+    }
+
+    // Create new profile if path doesn't exist
+    return await this.addProfile(profileData);
   }
 
   async updateProfile(profileId, updateData) {

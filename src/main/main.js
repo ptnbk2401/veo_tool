@@ -101,7 +101,10 @@ ipcMain.handle("profiles:list", async () => {
 ipcMain.handle("profiles:add", async (event, profileData) => {
   if (!automationManagerReady) throw new Error("AutomationManager not ready");
   try {
-    return await automationManager.addProfile(profileData);
+    // Use the new addOrUpdateProfile method that handles duplicates gracefully
+    return await automationManager.chromeProfileManager.addOrUpdateProfile(
+      profileData
+    );
   } catch (error) {
     throw new Error(`Failed to add profile: ${error.message}`);
   }
