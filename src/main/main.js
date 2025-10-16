@@ -125,7 +125,7 @@ ipcMain.handle("profiles:remove", async (event, profileId) => {
 ipcMain.handle("profiles:update", async (event, profileId, updateData) => {
   if (!automationManagerReady) throw new Error("AutomationManager not ready");
   try {
-    return await automationManager.chromeProfileManager.updateProfile(
+    return await automationManager.profileManager.updateProfile(
       profileId,
       updateData
     );
