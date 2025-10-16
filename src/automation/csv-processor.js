@@ -5,7 +5,17 @@ const createCsvWriter = require("csv-writer").createObjectCsvWriter;
 
 class CSVProcessor {
   constructor() {
-    this.requiredColumns = ["ID", "Prompt", "Flow_URL", "Status"];
+    // Only require essential input columns
+    this.requiredColumns = ["ID", "Prompt"];
+    // Optional columns that will be auto-generated if missing
+    this.optionalColumns = [
+      "Flow_URL",
+      "Status",
+      "StartTime",
+      "EndTime",
+      "VideoPath",
+      "Error",
+    ];
     this.validStatuses = ["pending", "rendering", "done", "error"];
     this.backupDir = path.join(process.cwd(), "backups");
   }
@@ -71,14 +81,14 @@ class CSVProcessor {
     const validatedData = data.map((row, index) => {
       const rowNumber = index + 1;
 
-      // Validate required fields
-      if (!row.ID || !row.Prompt || !row.Flow_URL) {
+      // Validate required fields only
+      if (!row.ID || !row.Prompt) {
         throw new Error(
-          `Row ${rowNumber}: Missing required data (ID, Prompt, or Flow_URL)`
+          `Row ${rowNumber}: Missing required data (ID or Prompt)`
         );
       }
 
-      // Validate and normalize status
+      // Auto-generate missing optional fields
       let status = row.Status ? row.Status.toLowerCase().trim() : "pending";
       if (!this.validStatuses.includes(status)) {
         console.warn(
@@ -87,17 +97,21 @@ class CSVProcessor {
         status = "pending";
       }
 
-      // Validate Flow_URL format
-      if (!this.isValidUrl(row.Flow_URL)) {
-        throw new Error(
-          `Row ${rowNumber}: Invalid Flow_URL format: ${row.Flow_URL}`
+      // Flow_URL will be generated during processing if not provided
+      let flowUrl = row.Flow_URL ? row.Flow_URL.toString().trim() : null;
+
+      // Validate Flow_URL format only if provided
+      if (flowUrl && !this.isValidUrl(flowUrl)) {
+        console.warn(
+          `Row ${rowNumber}: Invalid Flow_URL format: ${flowUrl}, will be auto-generated`
         );
+        flowUrl = null;
       }
 
       return {
         ID: row.ID.toString().trim(),
         Prompt: row.Prompt.toString().trim(),
-        Flow_URL: row.Flow_URL.toString().trim(),
+        Flow_URL: flowUrl || "", // Will be generated during processing
         Status: status,
         // Additional fields for tracking
         StartTime: row.StartTime || null,
