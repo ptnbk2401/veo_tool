@@ -44,9 +44,15 @@ function AccountManager() {
       })
       
       if (result.success) {
+        console.log('Profile created successfully:', result.profile)
+        
         // Refresh the profiles list by calling initialize or manually adding to store
         const { initialize } = useAppStore.getState()
         await initialize() // This will reload all profiles from backend
+        
+        // Double check - get current profiles from store
+        const { profiles: currentProfiles } = useAppStore.getState()
+        console.log('Current profiles after initialize:', currentProfiles)
         
         setNewProfile({ name: '', path: '' })
         setIsAddingProfile(false)

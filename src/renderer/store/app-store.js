@@ -23,7 +23,10 @@ export const useAppStore = create((set, get) => ({
   initialize: async () => {
     try {
       // Load initial data
+      console.log("Store: Loading profiles...");
       const profiles = await window.electronAPI.profiles.list();
+      console.log("Store: Loaded profiles:", profiles);
+
       const config = await window.electronAPI.config.load();
       const jobs = await window.electronAPI.automation.listJobs();
 
@@ -33,6 +36,8 @@ export const useAppStore = create((set, get) => ({
         activeJobs: jobs,
         isInitialized: true,
       });
+
+      console.log("Store: Initialization complete, profiles set:", profiles);
     } catch (error) {
       console.error("Failed to initialize app store:", error);
       set({ isInitialized: true }); // Still mark as initialized to show UI
