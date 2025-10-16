@@ -24,8 +24,12 @@ class SessionDetector {
       // Navigate to VEO3 main page
       await driver.get(baseUrl);
 
-      // Wait for page to load
-      await driver.wait(until.titleContains("VEO"), 10000);
+      // Wait for page to load (more flexible timeout)
+      try {
+        await driver.wait(until.titleContains("VEO"), 5000);
+      } catch (titleError) {
+        console.log("VEO title not found, checking page anyway...");
+      }
 
       const currentUrl = await driver.getCurrentUrl();
 

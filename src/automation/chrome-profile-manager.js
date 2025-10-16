@@ -418,10 +418,10 @@ class ChromeProfileManager {
 
     let driver = null;
     try {
-      // Create a temporary browser session
+      // Create a temporary browser session (visible for user interaction)
       driver = await this.createBrowserSession(profileId, {
         ...options,
-        headless: options.headless !== false, // Default to headless for testing
+        headless: false, // Always visible for testing so user can login
       });
 
       // Check VEO3 login status
@@ -433,26 +433,25 @@ class ChromeProfileManager {
       const sessionStatus = loginStatus.isLoggedIn ? "valid" : "expired";
       await this.updateProfileStatus(profileId, sessionStatus);
 
-      return {
-        success: true,
-        isLoggedIn: loginStatus.isLoggedIn,
-        sessionStatus,
-        userInfo: loginStatus.userInfo,
-        method: loginStatus.method,
-        currentUrl: loginStatus.currentUrl,
-      };
-    } catch (error) {
-      console.error(`Session test failed for profile ${profileId}:`, error);
-      await this.updateProfileStatus(profileId, "error");
+      // If not logged in, keep browser open for manual login
+      if (!loginStatus.isLoggedIn) {
+        console.log(
+          `Profile ${profileId} not logged in. Browser left open for manual login.`
+        );
+        return {
+          success: true,
+          isLoggedIn: loginStatus.isLoggedIn,
+          sessionStatus,
+          userInfo: loginStatus.userInfo,
+          method: loginStatus.method,
+          currentUrl: loginStatus.currentUrl,
+          message:
+            "Browser opened for manual login. Please login to VEO3 and close the browser when done.",
+          keepBrowserOpen: true,
+        };
+      }
 
-      return {
-        success: false,
-        isLoggedIn: false,
-        sessionStatus: "error",
-        error: error.message,
-      };
-    } finally {
-      // Always close the test session
+      // If logged in, close browser and return success
       if (driver) {
         try {
           await driver.quit();
@@ -461,6 +460,36 @@ class ChromeProfileManager {
           console.error("Error closing test session:", e);
         }
       }
+
+      return {
+        success: true,
+        isLoggedIn: loginStatus.isLoggedIn,
+        sessionStatus,
+        userInfo: loginStatus.userInfo,
+        method: loginStatus.method,
+        currentUrl: loginStatus.currentUrl,
+        message: "Profile test completed successfully.",
+      };
+    } catch (error) {
+      console.error(`Session test failed for profile ${profileId}:`, error);
+      await this.updateProfileStatus(profileId, "error");
+
+      // Close browser on error
+      if (driver) {
+        try {
+          await driver.quit();
+          this.activeSessions.delete(profileId);
+        } catch (e) {
+          console.error("Error closing test session:", e);
+        }
+      }
+
+      return {
+        success: false,
+        isLoggedIn: false,
+        sessionStatus: "error",
+        error: error.message,
+      };
     }
   }
 
