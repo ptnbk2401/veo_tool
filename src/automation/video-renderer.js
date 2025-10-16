@@ -192,8 +192,18 @@ class VideoRenderer {
       // Navigate to VEO3 main page
       await driver.get("https://labs.google/fx/tools/flow");
 
-      // Wait for page to load
-      await driver.wait(until.titleContains("VEO"), this.timeouts.pageLoad);
+      // Wait for page to load - more flexible approach
+      try {
+        await driver.wait(until.titleContains("VEO"), 10000);
+      } catch (titleError) {
+        console.log("VEO title not found, checking if page loaded anyway...");
+        // Check if page loaded by looking for body element
+        await driver.wait(until.elementLocated(By.css("body")), 10000);
+
+        // Get actual title for debugging
+        const actualTitle = await driver.getTitle();
+        console.log(`Page loaded with title: "${actualTitle}"`);
+      }
 
       // Look for "New Project" or "Create" button
       const newProjectSelectors = [
@@ -207,16 +217,25 @@ class VideoRenderer {
       ];
 
       let newProjectButton = null;
+      console.log("Searching for New Project button...");
+
       for (const selector of newProjectSelectors) {
         try {
+          console.log(`Trying selector: ${selector}`);
           newProjectButton = await driver.findElement(By.css(selector));
-          if (newProjectButton) break;
+          if (newProjectButton) {
+            console.log(`✅ Found button with selector: ${selector}`);
+            break;
+          }
         } catch (e) {
+          console.log(`❌ Selector failed: ${selector}`);
           // Continue to next selector
         }
       }
 
       if (!newProjectButton) {
+        console.log("No button found with CSS selectors, trying XPath...");
+
         // If no specific button found, try to find any clickable element with "new" text
         try {
           newProjectButton = await driver.findElement(
@@ -224,8 +243,39 @@ class VideoRenderer {
               "//button[contains(translate(text(), 'NEW', 'new'), 'new')] | //a[contains(translate(text(), 'NEW', 'new'), 'new')]"
             )
           );
+          console.log("✅ Found button with XPath");
         } catch (e) {
-          throw new Error("Could not find 'New Project' button on VEO3 page");
+          // Debug: Get page source to see what's actually on the page
+          console.log("❌ No button found. Getting page info for debugging...");
+
+          const currentUrl = await driver.getCurrentUrl();
+          const pageTitle = await driver.getTitle();
+          console.log(`Current URL: ${currentUrl}`);
+          console.log(`Page Title: ${pageTitle}`);
+
+          // Try to find any buttons on the page
+          try {
+            const allButtons = await driver.findElements(
+              By.css('button, a[role="button"], .btn')
+            );
+            console.log(`Found ${allButtons.length} buttons/links on page`);
+
+            for (let i = 0; i < Math.min(allButtons.length, 5); i++) {
+              try {
+                const buttonText = await allButtons[i].getText();
+                const buttonTag = await allButtons[i].getTagName();
+                console.log(`Button ${i + 1}: <${buttonTag}> "${buttonText}"`);
+              } catch (btnError) {
+                console.log(`Button ${i + 1}: Could not get text`);
+              }
+            }
+          } catch (debugError) {
+            console.log("Could not get page buttons for debugging");
+          }
+
+          throw new Error(
+            `Could not find 'New Project' button on VEO3 page. URL: ${currentUrl}, Title: ${pageTitle}`
+          );
         }
       }
 
