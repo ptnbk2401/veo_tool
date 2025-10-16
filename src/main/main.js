@@ -92,8 +92,11 @@ ipcMain.handle("app:getPlatform", () => {
 ipcMain.handle("profiles:list", async () => {
   if (!automationManagerReady) throw new Error("AutomationManager not ready");
   try {
-    return automationManager.listProfiles();
+    const profiles = automationManager.listProfiles();
+    console.log("IPC profiles:list - Returning profiles:", profiles);
+    return profiles;
   } catch (error) {
+    console.error("IPC profiles:list - Error:", error);
     throw new Error(`Failed to list profiles: ${error.message}`);
   }
 });
