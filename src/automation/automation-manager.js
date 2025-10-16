@@ -510,6 +510,11 @@ class AutomationManager {
         `VEO3_Profile_${profileName}_${timestamp}`
       );
 
+      // Ensure the profile directory exists
+      const fs = require("fs-extra");
+      await fs.ensureDir(profilePath);
+      this.logger.info("Created profile directory", { profilePath });
+
       // Create the profile
       const profile = await this.profileManager.addProfile({
         name: profileData.name,
