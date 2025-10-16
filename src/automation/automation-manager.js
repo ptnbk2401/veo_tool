@@ -521,11 +521,15 @@ class AutomationManager {
         path: profilePath,
       });
 
-      // Open browser for login
-      this.logger.info("Opening browser for login", { profileId: profile.id });
-      const loginResult = await this.profileManager.loginToVEO3(profile.id);
+      // Open browser for manual login (don't check VEO3 status yet)
+      this.logger.info("Opening browser for manual login", {
+        profileId: profile.id,
+      });
+      const browserResult = await this.profileManager.openBrowserForLogin(
+        profile.id
+      );
 
-      if (loginResult.success) {
+      if (browserResult.success) {
         this.logger.logProfileAction("create_with_login", profile.id, {
           name: profile.name,
           success: true,
@@ -534,7 +538,9 @@ class AutomationManager {
         return {
           success: true,
           profile: profile,
-          message: "Profile created and login completed successfully",
+          message:
+            "Profile created and browser opened. Please login manually and close the browser when done.",
+          driver: browserResult.driver, // Return driver reference
         };
       } else {
         // If login failed, remove the profile

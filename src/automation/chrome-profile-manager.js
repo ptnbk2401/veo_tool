@@ -448,6 +448,38 @@ class ChromeProfileManager {
     }
   }
 
+  async openBrowserForLogin(profileId, options = {}) {
+    const profile = this.getProfile(profileId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    try {
+      // Create browser session (visible for manual login)
+      const driver = await this.createBrowserSession(profileId, {
+        ...options,
+        headless: false, // Always visible for login
+      });
+
+      // Just open Google homepage - let user navigate and login manually
+      await driver.get("https://www.google.com");
+
+      // Update profile status to indicate browser is open
+      await this.updateProfileStatus(profileId, "browser_open");
+
+      return {
+        success: true,
+        message:
+          "Browser opened successfully. Please login manually and close the browser when done.",
+        driver: driver, // Return driver so UI can manage it
+      };
+    } catch (error) {
+      console.error(`Failed to open browser for profile ${profileId}:`, error);
+      await this.updateProfileStatus(profileId, "error");
+      throw error;
+    }
+  }
+
   async loginToVEO3(profileId, options = {}) {
     const profile = this.getProfile(profileId);
     if (!profile) {
