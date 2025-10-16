@@ -471,7 +471,8 @@ class ChromeProfileManager {
         success: true,
         message:
           "Browser opened successfully. Please login manually and close the browser when done.",
-        driver: driver, // Return driver so UI can manage it
+        // Driver is stored in activeSessions, don't return it as it can't be serialized
+        profileId: profileId,
       };
     } catch (error) {
       console.error(`Failed to open browser for profile ${profileId}:`, error);

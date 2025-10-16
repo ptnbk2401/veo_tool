@@ -540,7 +540,7 @@ class AutomationManager {
           profile: profile,
           message:
             "Profile created and browser opened. Please login manually and close the browser when done.",
-          driver: browserResult.driver, // Return driver reference
+          // Don't return driver object as it can't be serialized over IPC
         };
       } else {
         // If login failed, remove the profile
