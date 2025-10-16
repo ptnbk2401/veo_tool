@@ -125,6 +125,15 @@ ipcMain.handle("profiles:test", async (event, profileId) => {
   }
 });
 
+ipcMain.handle("profiles:createWithLogin", async (event, profileData) => {
+  if (!automationManagerReady) throw new Error("AutomationManager not ready");
+  try {
+    return await automationManager.createProfileWithLogin(profileData);
+  } catch (error) {
+    throw new Error(`Failed to create profile with login: ${error.message}`);
+  }
+});
+
 // CSV operations handlers
 ipcMain.handle("csv:load", async (event, filePath) => {
   if (!automationManagerReady) throw new Error("AutomationManager not ready");

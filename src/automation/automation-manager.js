@@ -3,6 +3,8 @@ const BatchProcessor = require("./batch-processor");
 const VideoRenderer = require("./video-renderer");
 const ConfigManager = require("./config-manager");
 const Logger = require("./logger");
+const os = require("os");
+const path = require("path");
 
 class AutomationManager {
   constructor() {
@@ -476,6 +478,58 @@ class AutomationManager {
 
   listProfiles() {
     return this.profileManager.listProfiles();
+  }
+
+  async createProfileWithLogin(profileData) {
+    try {
+      this.logger.info("Creating profile with login", {
+        name: profileData.name,
+      });
+
+      // Generate unique profile path
+      const timestamp = Date.now();
+      const profileName = profileData.name.replace(/[^a-zA-Z0-9]/g, "_");
+      const profilePath = path.join(
+        os.homedir(),
+        "Library/Application Support/Google/Chrome",
+        `VEO3_Profile_${profileName}_${timestamp}`
+      );
+
+      // Create the profile
+      const profile = await this.profileManager.addProfile({
+        name: profileData.name,
+        path: profilePath,
+      });
+
+      // Open browser for login
+      this.logger.info("Opening browser for login", { profileId: profile.id });
+      const loginResult = await this.profileManager.loginToVEO3(profile.id);
+
+      if (loginResult.success) {
+        this.logger.logProfileAction("create_with_login", profile.id, {
+          name: profile.name,
+          success: true,
+        });
+
+        return {
+          success: true,
+          profile: profile,
+          message: "Profile created and login completed successfully",
+        };
+      } else {
+        // If login failed, remove the profile
+        await this.profileManager.removeProfile(profile.id);
+        throw new Error("Login failed");
+      }
+    } catch (error) {
+      this.logger.logProfileError(
+        "create_with_login",
+        null,
+        error,
+        profileData
+      );
+      throw error;
+    }
   }
 
   // Configuration methods

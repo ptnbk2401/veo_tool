@@ -8,17 +8,46 @@ function AccountManager() {
   const [testingProfiles, setTestingProfiles] = useState(new Set())
 
   const handleAddProfile = async () => {
-    if (!newProfile.name || !newProfile.path) {
-      alert('Please fill in both name and path')
+    if (!newProfile.name) {
+      alert('Please enter a profile name')
       return
     }
 
     try {
-      await addProfile(newProfile)
+      // Create a new Chrome profile by opening browser for login
+      const profileData = {
+        name: newProfile.name,
+        // Let the backend handle profile creation and path
+        createNew: true
+      }
+      
+      await addProfile(profileData)
       setNewProfile({ name: '', path: '' })
       setIsAddingProfile(false)
     } catch (error) {
       alert(`Failed to add profile: ${error.message}`)
+    }
+  }
+
+  const handleQuickLogin = async () => {
+    if (!newProfile.name) {
+      alert('Please enter a profile name first')
+      return
+    }
+
+    try {
+      // Open browser for login and create profile automatically
+      const result = await window.electronAPI.profiles.createWithLogin({
+        name: newProfile.name
+      })
+      
+      if (result.success) {
+        setNewProfile({ name: '', path: '' })
+        setIsAddingProfile(false)
+        alert('Profile created successfully! You can now use it for automation.')
+      }
+    } catch (error) {
+      alert(`Failed to create profile: ${error.message}`)
     }
   }
 
@@ -166,40 +195,63 @@ function AccountManager() {
               value={newProfile.name}
               onChange={(e) => setNewProfile(prev => ({ ...prev, name: e.target.value }))}
             />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Chrome Profile Path</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Select Chrome profile folder..."
-                value={newProfile.path}
-                onChange={(e) => setNewProfile(prev => ({ ...prev, path: e.target.value }))}
-              />
-              <button 
-                className="btn btn-outline"
-                onClick={handleSelectFolder}
-              >
-                Browse
-              </button>
-            </div>
             <div className="text-sm text-gray-500 mt-2">
-              <p>Common Chrome profile locations:</p>
-              <p>• macOS: ~/Library/Application Support/Google/Chrome/Default</p>
-              <p>• Windows: %LOCALAPPDATA%\Google\Chrome\User Data\Default</p>
-              <p>• Linux: ~/.config/google-chrome/Default</p>
+              Give your profile a memorable name
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="bg-blue-50 p-4 rounded-lg mb-4">
+            <h4 className="font-medium text-blue-900 mb-2">🚀 Quick Setup (Recommended)</h4>
+            <p className="text-sm text-blue-700 mb-3">
+              We'll open a browser window for you to login to VEO3, then automatically save your profile.
+            </p>
             <button 
               className="btn btn-primary"
-              onClick={handleAddProfile}
+              onClick={handleQuickLogin}
+              disabled={!newProfile.name}
             >
-              Add Profile
+              Open Browser & Login
             </button>
+          </div>
+
+          <div className="text-center text-gray-400 mb-4">
+            <span className="bg-white px-3">or</span>
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h4 className="font-medium text-gray-700 mb-2">📁 Manual Setup</h4>
+            <p className="text-sm text-gray-600 mb-3">
+              If you already have a Chrome profile with VEO3 login, you can browse to select it.
+            </p>
+            
+            <div className="form-group mb-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Select Chrome profile folder..."
+                  value={newProfile.path}
+                  onChange={(e) => setNewProfile(prev => ({ ...prev, path: e.target.value }))}
+                />
+                <button 
+                  className="btn btn-outline"
+                  onClick={handleSelectFolder}
+                >
+                  Browse
+                </button>
+              </div>
+            </div>
+
+            <button 
+              className="btn btn-secondary"
+              onClick={handleAddProfile}
+              disabled={!newProfile.name || !newProfile.path}
+            >
+              Add Existing Profile
+            </button>
+          </div>
+
+          <div className="flex gap-2 mt-4">
             <button 
               className="btn btn-outline"
               onClick={() => setIsAddingProfile(false)}

@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     add: (profileData) => ipcRenderer.invoke("profiles:add", profileData),
     remove: (profileId) => ipcRenderer.invoke("profiles:remove", profileId),
     test: (profileId) => ipcRenderer.invoke("profiles:test", profileId),
+    createWithLogin: (profileData) =>
+      ipcRenderer.invoke("profiles:createWithLogin", profileData),
   },
 
   // CSV operations (will be implemented in later tasks)
