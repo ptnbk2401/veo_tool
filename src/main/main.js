@@ -134,6 +134,15 @@ ipcMain.handle("profiles:createWithLogin", async (event, profileData) => {
   }
 });
 
+ipcMain.handle("profiles:detectSystem", async () => {
+  if (!automationManagerReady) throw new Error("AutomationManager not ready");
+  try {
+    return await automationManager.detectSystemProfiles();
+  } catch (error) {
+    throw new Error(`Failed to detect system profiles: ${error.message}`);
+  }
+});
+
 // CSV operations handlers
 ipcMain.handle("csv:load", async (event, filePath) => {
   if (!automationManagerReady) throw new Error("AutomationManager not ready");

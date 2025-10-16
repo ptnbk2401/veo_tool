@@ -532,6 +532,62 @@ class AutomationManager {
     }
   }
 
+  async detectSystemProfiles() {
+    try {
+      this.logger.info("Detecting system Chrome profiles");
+
+      const fs = require("fs-extra");
+      const homeDir = os.homedir();
+      const chromePath = path.join(
+        homeDir,
+        "Library/Application Support/Google/Chrome"
+      );
+
+      if (!(await fs.pathExists(chromePath))) {
+        return [];
+      }
+
+      const items = await fs.readdir(chromePath);
+      const profiles = [];
+
+      for (const item of items) {
+        if (item === "Default" || item.startsWith("Profile ")) {
+          const profilePath = path.join(chromePath, item);
+          const prefsPath = path.join(profilePath, "Preferences");
+
+          let profileInfo = {
+            name: item,
+            path: profilePath,
+            displayName: item === "Default" ? "Default Profile" : item,
+          };
+
+          if (await fs.pathExists(prefsPath)) {
+            try {
+              const prefs = await fs.readJson(prefsPath);
+              if (prefs.profile && prefs.profile.name) {
+                profileInfo.displayName = prefs.profile.name;
+              }
+              if (prefs.account_info && prefs.account_info.length > 0) {
+                profileInfo.hasAccounts = true;
+                profileInfo.accountCount = prefs.account_info.length;
+              }
+            } catch (e) {
+              // Ignore JSON parsing errors
+            }
+          }
+
+          profiles.push(profileInfo);
+        }
+      }
+
+      this.logger.info(`Detected ${profiles.length} Chrome profiles`);
+      return profiles;
+    } catch (error) {
+      this.logger.error("Failed to detect system profiles", error);
+      throw error;
+    }
+  }
+
   // Configuration methods
   getConfig() {
     return this.configManager.config;
