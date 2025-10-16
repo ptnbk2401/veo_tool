@@ -486,12 +486,27 @@ class AutomationManager {
         name: profileData.name,
       });
 
-      // Generate unique profile path
+      // Generate unique profile path based on OS
       const timestamp = Date.now();
       const profileName = profileData.name.replace(/[^a-zA-Z0-9]/g, "_");
+
+      let chromeBasePath;
+      if (process.platform === "win32") {
+        chromeBasePath = path.join(
+          os.homedir(),
+          "AppData/Local/Google/Chrome/User Data"
+        );
+      } else if (process.platform === "darwin") {
+        chromeBasePath = path.join(
+          os.homedir(),
+          "Library/Application Support/Google/Chrome"
+        );
+      } else {
+        chromeBasePath = path.join(os.homedir(), ".config/google-chrome");
+      }
+
       const profilePath = path.join(
-        os.homedir(),
-        "Library/Application Support/Google/Chrome",
+        chromeBasePath,
         `VEO3_Profile_${profileName}_${timestamp}`
       );
 
@@ -538,12 +553,24 @@ class AutomationManager {
 
       const fs = require("fs-extra");
       const homeDir = os.homedir();
-      const chromePath = path.join(
-        homeDir,
-        "Library/Application Support/Google/Chrome"
-      );
+
+      let chromePath;
+      if (process.platform === "win32") {
+        chromePath = path.join(
+          homeDir,
+          "AppData/Local/Google/Chrome/User Data"
+        );
+      } else if (process.platform === "darwin") {
+        chromePath = path.join(
+          homeDir,
+          "Library/Application Support/Google/Chrome"
+        );
+      } else {
+        chromePath = path.join(homeDir, ".config/google-chrome");
+      }
 
       if (!(await fs.pathExists(chromePath))) {
+        this.logger.info(`Chrome directory not found: ${chromePath}`);
         return [];
       }
 
