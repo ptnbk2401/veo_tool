@@ -44,6 +44,10 @@ function AccountManager() {
       })
       
       if (result.success) {
+        // Refresh the profiles list by calling initialize or manually adding to store
+        const { initialize } = useAppStore.getState()
+        await initialize() // This will reload all profiles from backend
+        
         setNewProfile({ name: '', path: '' })
         setIsAddingProfile(false)
         alert('Profile created successfully! You can now use it for automation.')
