@@ -8,6 +8,8 @@ function AccountManager() {
   const [testingProfiles, setTestingProfiles] = useState(new Set())
   const [availableProfiles, setAvailableProfiles] = useState([])
   const [loadingProfiles, setLoadingProfiles] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(null)
+  const [editName, setEditName] = useState('')
 
   const handleAddProfile = async () => {
     if (!newProfile.name) {
@@ -71,6 +73,38 @@ function AccountManager() {
         alert(`Failed to remove profile: ${error.message}`)
       }
     }
+  }
+
+  const handleEditProfile = (profile) => {
+    setEditingProfile(profile.id)
+    setEditName(profile.name)
+  }
+
+  const handleSaveEdit = async (profileId) => {
+    if (!editName.trim()) {
+      alert('Profile name cannot be empty')
+      return
+    }
+
+    try {
+      // Call the backend to update profile name
+      await window.electronAPI.profiles.update(profileId, { name: editName.trim() })
+      
+      // Refresh profiles list
+      const { initialize } = useAppStore.getState()
+      await initialize()
+      
+      // Reset editing state
+      setEditingProfile(null)
+      setEditName('')
+    } catch (error) {
+      alert(`Failed to update profile: ${error.message}`)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingProfile(null)
+    setEditName('')
   }
 
   const handleTestProfile = async (profileId) => {
@@ -172,7 +206,34 @@ function AccountManager() {
               <tbody>
                 {profiles.map(profile => (
                   <tr key={profile.id}>
-                    <td className="font-medium">{profile.name}</td>
+                    <td className="font-medium">
+                      {editingProfile === profile.id ? (
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="input input-sm"
+                            placeholder="Profile name"
+                            autoFocus
+                          />
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => handleSaveEdit(profile.id)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={handleCancelEdit}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        profile.name
+                      )}
+                    </td>
                     <td className="text-sm text-gray-500" title={profile.path}>
                       {profile.path.length > 50 
                         ? `...${profile.path.slice(-50)}` 
@@ -195,13 +256,21 @@ function AccountManager() {
                         <button
                           className="btn btn-outline btn-sm"
                           onClick={() => handleTestProfile(profile.id)}
-                          disabled={testingProfiles.has(profile.id)}
+                          disabled={testingProfiles.has(profile.id) || editingProfile === profile.id}
                         >
                           {testingProfiles.has(profile.id) ? 'Testing...' : 'Test'}
                         </button>
                         <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleEditProfile(profile)}
+                          disabled={editingProfile !== null}
+                        >
+                          Edit
+                        </button>
+                        <button
                           className="btn btn-danger btn-sm"
                           onClick={() => handleRemoveProfile(profile.id)}
+                          disabled={editingProfile === profile.id}
                         >
                           Remove
                         </button>
