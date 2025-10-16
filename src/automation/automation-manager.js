@@ -100,6 +100,8 @@ class AutomationManager {
   }
 
   createJobWorker(jobId, profileId) {
+    const automationManager = this; // Capture reference to AutomationManager
+
     return {
       jobId,
       profileId,
@@ -113,18 +115,25 @@ class AutomationManager {
 
         try {
           // Create browser session
-          this.driver = await this.profileManager.createBrowserSession(
-            profileId,
-            {
-              headless: this.configManager.get("automation.headless"),
-              windowSize: this.configManager.get("browser.windowSize"),
-            }
-          );
+          this.driver =
+            await automationManager.profileManager.createBrowserSession(
+              profileId,
+              {
+                headless: automationManager.configManager.get(
+                  "automation.headless"
+                ),
+                windowSize:
+                  automationManager.configManager.get("browser.windowSize"),
+              }
+            );
 
           // Start processing loop
           await this.processLoop();
         } catch (error) {
-          this.logger.error(`Job worker ${jobId} failed to start`, error);
+          automationManager.logger.error(
+            `Job worker ${jobId} failed to start`,
+            error
+          );
           await this.stop();
         }
       },
@@ -139,7 +148,8 @@ class AutomationManager {
             }
 
             // Get next pending item
-            const nextItem = this.batchProcessor.getNextPendingItem(jobId);
+            const nextItem =
+              automationManager.batchProcessor.getNextPendingItem(jobId);
             if (!nextItem) {
               // No more items to process
               await this.completeJob();
@@ -149,7 +159,7 @@ class AutomationManager {
             // Process the item
             await this.processItem(nextItem);
           } catch (error) {
-            this.logger.error(
+            automationManager.logger.error(
               `Error in job worker ${jobId} process loop`,
               error
             );
@@ -167,40 +177,49 @@ class AutomationManager {
         const startTime = Date.now();
 
         try {
-          this.logger.logItemStart(jobId, item.ID, item);
+          automationManager.logger.logItemStart(jobId, item.ID, item);
 
           // Update item status to rendering
-          await this.batchProcessor.updateJobItemStatus(
+          await automationManager.batchProcessor.updateJobItemStatus(
             jobId,
             item.ID,
             "rendering"
           );
 
           // Render video with video settings
-          const result = await this.videoRenderer.renderVideo(
+          const result = await automationManager.videoRenderer.renderVideo(
             this.driver,
             item.Flow_URL,
             item.Prompt,
             {
-              timeout: this.configManager.get("automation.timeout"),
-              outputFolder: this.configManager.get("paths.outputFolder"),
+              timeout:
+                automationManager.configManager.get("automation.timeout"),
+              outputFolder:
+                automationManager.configManager.get("paths.outputFolder"),
               videoSettings: {
-                model: this.configManager.get("video.model") || "veo-2",
+                model:
+                  automationManager.configManager.get("video.model") ||
+                  "veo-3.1-fast",
                 aspectRatio:
-                  this.configManager.get("video.aspectRatio") || "16:9",
-                videoCount: this.configManager.get("video.count") || 1,
-                duration: this.configManager.get("video.duration") || "5s",
-                quality: this.configManager.get("video.quality") || "high",
+                  automationManager.configManager.get("video.aspectRatio") ||
+                  "16:9",
+                videoCount:
+                  automationManager.configManager.get("video.count") || 1,
+                duration:
+                  automationManager.configManager.get("video.duration") || "5s",
+                quality:
+                  automationManager.configManager.get("video.quality") ||
+                  "high",
               },
               onProgressUpdate: (progress) => {
                 // Emit progress update event
-                this.emitProgressUpdate(jobId, item.ID, progress);
+                automationManager.emitProgressUpdate(jobId, item.ID, progress);
               },
             }
           );
 
           // Update item status to done with all result data
-          await this.batchProcessor.updateJobItemStatus(
+          await automationManager.batchProcessor.updateJobItemStatus(
             jobId,
             item.ID,
             "done",
@@ -211,13 +230,13 @@ class AutomationManager {
             }
           );
 
-          this.logger.logItemComplete(jobId, item.ID, result);
+          automationManager.logger.logItemComplete(jobId, item.ID, result);
 
           // Emit completion event
-          this.emitItemComplete(jobId, item.ID, result);
+          automationManager.emitItemComplete(jobId, item.ID, result);
         } catch (error) {
           // Update item status to error
-          await this.batchProcessor.updateJobItemStatus(
+          await automationManager.batchProcessor.updateJobItemStatus(
             jobId,
             item.ID,
             "error",
@@ -226,7 +245,7 @@ class AutomationManager {
             }
           );
 
-          this.logger.logItemError(jobId, item.ID, error);
+          automationManager.logger.logItemError(jobId, item.ID, error);
 
           // Emit error event
           this.emitItemError(jobId, item.ID, error);

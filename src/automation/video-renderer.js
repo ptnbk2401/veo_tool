@@ -2,9 +2,11 @@ const { By, until, Key } = require("selenium-webdriver");
 const fs = require("fs-extra");
 const path = require("path");
 const RetryHandler = require("./retry-handler");
+const StatusTracker = require("./status-tracker");
 
 class VideoRenderer {
   constructor() {
+    this.statusTracker = new StatusTracker();
     this.retryHandler = new RetryHandler({
       maxAttempts: 3,
       baseDelay: 2000,
@@ -88,9 +90,17 @@ class VideoRenderer {
           // Step 1: Create new project or navigate to existing Flow URL
           let actualFlowUrl = flowUrl;
           if (!flowUrl || flowUrl.trim() === "") {
-            console.log("No Flow_URL provided, creating new VEO3 project...");
+            this.statusTracker.updateStatus(
+              "creating_project",
+              "Creating new VEO3 project...",
+              10
+            );
             actualFlowUrl = await this.createNewVEO3Project(driver);
-            console.log(`Created new project with URL: ${actualFlowUrl}`);
+            this.statusTracker.updateStatus(
+              "project_created",
+              `Project created: ${actualFlowUrl}`,
+              20
+            );
           }
 
           // Step 2: Navigate to Flow URL with retry
@@ -175,7 +185,7 @@ class VideoRenderer {
     );
   }
 
-  async createNewVEO3Project(driver) {
+  async createNewVEO3Project(driver, options = {}) {
     try {
       console.log("Creating new VEO3 project...");
 
@@ -245,7 +255,7 @@ class VideoRenderer {
       }, this.timeouts.pageLoad);
 
       const projectUrl = await driver.getCurrentUrl();
-      console.log(`New VEO3 project created: ${projectUrl}`);
+      console.log(`✅ New VEO3 project created successfully: ${projectUrl}`);
 
       return projectUrl;
     } catch (error) {
