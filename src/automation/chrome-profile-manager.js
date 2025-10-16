@@ -37,7 +37,13 @@ class ChromeProfileManager {
   async saveProfiles() {
     try {
       const data = Object.fromEntries(this.profiles);
+      console.log(
+        "ChromeProfileManager: Saving profiles to file:",
+        this.profilesFile
+      );
+      console.log("ChromeProfileManager: Profiles data:", data);
       await fs.writeJson(this.profilesFile, data, { spaces: 2 });
+      console.log("ChromeProfileManager: Profiles saved successfully");
     } catch (error) {
       console.error("Failed to save profiles:", error);
       throw error;
@@ -51,6 +57,8 @@ class ChromeProfileManager {
   async addProfile(profileData) {
     const { name, path: profilePath } = profileData;
 
+    console.log("ChromeProfileManager: Adding profile:", { name, profilePath });
+
     // Validate input
     if (!name || !profilePath) {
       throw new Error("Profile name and path are required");
@@ -58,6 +66,7 @@ class ChromeProfileManager {
 
     // Normalize path to avoid duplicate path issues
     const normalizedPath = path.resolve(profilePath);
+    console.log("ChromeProfileManager: Normalized path:", normalizedPath);
 
     // Validate profile path exists
     if (!(await fs.pathExists(normalizedPath))) {
@@ -97,8 +106,15 @@ class ChromeProfileManager {
       updatedAt: new Date().toISOString(),
     };
 
+    console.log("ChromeProfileManager: Created profile object:", profile);
     this.profiles.set(profileId, profile);
+    console.log(
+      "ChromeProfileManager: Profile added to Map, total profiles:",
+      this.profiles.size
+    );
+
     await this.saveProfiles();
+    console.log("ChromeProfileManager: Profile saved to file");
 
     return profile;
   }
