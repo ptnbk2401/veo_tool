@@ -213,16 +213,39 @@ class ChromeProfileManager {
       // Set user data directory to the profile path
       chromeOptions.addArguments(`--user-data-dir=${profile.path}`);
 
+      // Security and stealth options to avoid detection and "not secure" warnings
+      chromeOptions.addArguments("--no-first-run");
+      chromeOptions.addArguments("--no-default-browser-check");
+      chromeOptions.addArguments(
+        "--disable-blink-features=AutomationControlled"
+      );
+      chromeOptions.addArguments("--disable-extensions");
+      chromeOptions.addArguments("--disable-plugins-discovery");
+      chromeOptions.addArguments("--disable-web-security");
+      chromeOptions.addArguments("--allow-running-insecure-content");
+      chromeOptions.addArguments("--disable-features=VizDisplayCompositor");
+      chromeOptions.addArguments("--disable-ipc-flooding-protection");
+      chromeOptions.addArguments("--no-sandbox");
+      chromeOptions.addArguments("--disable-dev-shm-usage");
+      chromeOptions.addArguments("--ignore-certificate-errors");
+      chromeOptions.addArguments("--ignore-ssl-errors");
+      chromeOptions.addArguments("--ignore-certificate-errors-spki-list");
+      chromeOptions.addArguments("--disable-background-timer-throttling");
+      chromeOptions.addArguments("--disable-backgrounding-occluded-windows");
+      chromeOptions.addArguments("--disable-renderer-backgrounding");
+
+      // Set realistic user agent
+      chromeOptions.addArguments(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      );
+
+      // Exclude automation switches
+      chromeOptions.excludeSwitches(["enable-automation"]);
+
       // Additional Chrome options
       if (options.headless) {
         chromeOptions.addArguments("--headless");
       }
-
-      // Disable web security for automation (be careful with this)
-      chromeOptions.addArguments("--disable-web-security");
-      chromeOptions.addArguments("--disable-features=VizDisplayCompositor");
-      chromeOptions.addArguments("--no-sandbox");
-      chromeOptions.addArguments("--disable-dev-shm-usage");
 
       // Set window size
       if (options.windowSize) {
@@ -231,10 +254,67 @@ class ChromeProfileManager {
         );
       }
 
+      // Set preferences to avoid security warnings and automation detection
+      chromeOptions.setUserPreferences({
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_settings.popups": 0,
+        "profile.managed_default_content_settings.images": 1,
+        "profile.default_content_setting_values.media_stream": 2,
+        "profile.default_content_setting_values.geolocation": 2,
+        "security.insecure_form_warning.enabled": false,
+        "security.mixed_form_warning.enabled": false,
+      });
+
       const driver = await new Builder()
         .forBrowser("chrome")
         .setChromeOptions(chromeOptions)
         .build();
+
+      // Execute stealth scripts to remove automation indicators and security warnings
+      try {
+        await driver.executeScript(`
+          // Remove webdriver property
+          Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined,
+          });
+
+          // Remove automation indicators
+          delete navigator.__webdriver_evaluate;
+          delete navigator.__webdriver_script_function;
+          delete navigator.__webdriver_script_func;
+          delete navigator.__webdriver_script_fn;
+          delete navigator.__webdriver_unwrapped;
+          delete navigator.__driver_evaluate;
+          delete navigator.__webdriver_evaluate__;
+          delete navigator.__selenium_evaluate;
+          delete navigator.__fxdriver_evaluate;
+          delete navigator.__driver_unwrapped;
+          delete navigator.__webdriver_unwrapped__;
+          delete navigator.__selenium_unwrapped;
+          delete navigator.__fxdriver_unwrapped;
+
+          // Override chrome runtime
+          if (navigator.chrome) {
+            navigator.chrome.runtime = undefined;
+          }
+
+          // Override permissions to avoid security prompts
+          const originalQuery = window.navigator.permissions.query;
+          window.navigator.permissions.query = (parameters) => (
+            parameters.name === 'notifications' ?
+              Promise.resolve({ state: Notification.permission }) :
+              originalQuery(parameters)
+          );
+
+          // Remove security warning indicators
+          if (window.chrome && window.chrome.webstore) {
+            delete window.chrome.webstore;
+          }
+        `);
+      } catch (scriptError) {
+        console.warn("Failed to execute stealth scripts:", scriptError);
+        // Continue anyway, stealth scripts are not critical
+      }
 
       // Store the session
       this.activeSessions.set(profileId, driver);
