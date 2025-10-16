@@ -57,4 +57,5 @@ profiles/
 # Configuration files (may contain sensitive data)
 config/user-*.json
 
-# dist-renderer
+dist-renderer
+
