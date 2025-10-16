@@ -21,27 +21,48 @@ export const useAppStore = create((set, get) => ({
 
   // Actions
   initialize: async () => {
+    console.log("Store: Starting initialization...");
+
+    let profiles = [];
+    let config = null;
+    let jobs = [];
+
     try {
-      // Load initial data
+      // Load profiles
       console.log("Store: Loading profiles...");
-      const profiles = await window.electronAPI.profiles.list();
+      profiles = await window.electronAPI.profiles.list();
       console.log("Store: Loaded profiles:", profiles);
-
-      const config = await window.electronAPI.config.load();
-      const jobs = await window.electronAPI.automation.listJobs();
-
-      set({
-        profiles,
-        config,
-        activeJobs: jobs,
-        isInitialized: true,
-      });
-
-      console.log("Store: Initialization complete, profiles set:", profiles);
     } catch (error) {
-      console.error("Failed to initialize app store:", error);
-      set({ isInitialized: true }); // Still mark as initialized to show UI
+      console.error("Store: Failed to load profiles:", error);
     }
+
+    try {
+      // Load config
+      console.log("Store: Loading config...");
+      config = await window.electronAPI.config.load();
+      console.log("Store: Loaded config:", config);
+    } catch (error) {
+      console.error("Store: Failed to load config:", error);
+    }
+
+    try {
+      // Load jobs
+      console.log("Store: Loading jobs...");
+      jobs = await window.electronAPI.automation.listJobs();
+      console.log("Store: Loaded jobs:", jobs);
+    } catch (error) {
+      console.error("Store: Failed to load jobs:", error);
+    }
+
+    // Set state regardless of individual failures
+    set({
+      profiles,
+      config,
+      activeJobs: jobs,
+      isInitialized: true,
+    });
+
+    console.log("Store: Initialization complete, final profiles:", profiles);
   },
 
   // Profile actions

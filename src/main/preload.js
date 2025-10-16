@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     resume: () => ipcRenderer.invoke("automation:resume"),
     stop: () => ipcRenderer.invoke("automation:stop"),
     getStatus: () => ipcRenderer.invoke("automation:getStatus"),
+    listJobs: () => ipcRenderer.invoke("automation:listJobs"),
   },
 
   // Configuration (will be implemented in later tasks)
