@@ -8,6 +8,13 @@
     "dev": "npm run build-renderer && electron . --dev",
     "build": "vite build && electron-builder",
     "build-renderer": "vite build",
+    "preview": "vite preview",
+    "standalone": "node run-automation.js",
+    "setup": "node setup-profile.js",
+    "profiles": "node list-profiles.js",
+    "login": "node open-chrome-profile.js",
+    "kill-chrome": "node kill-chrome.js",
+    "test-session": "node test-session.js",
     "test": "jest",
     "postinstall": "electron-builder install-app-deps"
   },
