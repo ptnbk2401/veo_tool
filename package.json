@@ -58,10 +58,23 @@
     },
     "files": [
       "src/**/*",
-      "node_modules/**/*"
+      "dist-renderer/**/*",
+      "node_modules/**/*",
+      "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "dist-renderer",
+        "to": "dist-renderer"
+      },
+      {
+        "from": "node_modules/selenium-webdriver",
+        "to": "node_modules/selenium-webdriver"
+      }
+    ],
+    "asar": false,
     "win": {
-      "target": "nsis",
+      "target": ["nsis", "portable"],
       "icon": "assets/icon.ico"
     }
   }

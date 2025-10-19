@@ -87,26 +87,26 @@ function App() {
   // Handle start automation
   const handleStartAutomation = async () => {
     if (!selectedProfile) {
-      addLog("Please select a Chrome profile first", "error");
+      addLog("Vui lòng chọn Chrome profile trước", "error");
       alert(
-        "Please create and select a Chrome profile before running automation.",
+        "Vui lòng tạo và chọn Chrome profile trước khi chạy tự động.",
       );
       return;
     }
 
     if (prompts.length === 0) {
-      addLog("No prompts to process", "error");
+      addLog("Không có prompts để xử lý", "error");
       return;
     }
 
     setIsRunning(true);
     clearResults();
-    setProgress({ current: 0, total: prompts.length, status: "Initializing..." });
-    addLog(`Starting automation with profile: ${selectedProfile.name}`);
+    setProgress({ current: 0, total: prompts.length, status: "Đang khởi tạo..." });
+    addLog(`Bắt đầu tự động với profile: ${selectedProfile.name}`);
 
     try {
       // Simulate progress updates (in real implementation, this would come from backend)
-      setProgress({ current: 0, total: prompts.length, status: "Configuring VEO settings..." });
+      setProgress({ current: 0, total: prompts.length, status: "Đang cấu hình VEO..." });
 
       // Call backend automation
       const result = await window.electronAPI.startAutomation({
@@ -115,27 +115,27 @@ function App() {
         profileId: selectedProfile.id,
       });
 
-      setProgress({ current: prompts.length, total: prompts.length, status: "Completed!" });
+      setProgress({ current: prompts.length, total: prompts.length, status: "Hoàn thành!" });
 
       addLog(
-        `✅ Automation completed: ${result.success} successful, ${result.failed} failed`,
+        `✅ Tự động hoàn tất: ${result.success} thành công, ${result.failed} thất bại`,
         "success"
       );
 
       result.results.forEach((r, index) => {
         addResult(r);
         if (r.status === "success") {
-          addLog(`✅ Generated: ${r.prompt.substring(0, 50)}...`, "success");
+          addLog(`✅ Đã tạo: ${r.prompt.substring(0, 50)}...`, "success");
         } else {
           addLog(
-            `❌ Failed: ${r.prompt.substring(0, 50)}... - ${r.status}`,
+            `❌ Thất bại: ${r.prompt.substring(0, 50)}... - ${r.status}`,
             "error",
           );
         }
       });
     } catch (error) {
-      addLog(`Automation failed: ${error.message}`, "error");
-      setProgress({ current: 0, total: 0, status: "Failed" });
+      addLog(`Tự động thất bại: ${error.message}`, "error");
+      setProgress({ current: 0, total: 0, status: "Thất bại" });
     } finally {
       setIsRunning(false);
     }
@@ -161,17 +161,17 @@ function App() {
   // Open output folder
   const handleOpenOutputFolder = async () => {
     try {
-      const outputDir = settings.outputDir || "dist/videos";
+      const outputDir = settings.outputDir || "outputs";
       await window.electronAPI.openFolder(outputDir);
     } catch (error) {
-      addLog(`Failed to open folder: ${error.message}`, "error");
+      addLog(`Không thể mở thư mục: ${error.message}`, "error");
     }
   };
 
   return (
     <div className="app">
       <header className="app-header">
-        <h1>VEO3 Automation Tool</h1>
+        <h1>VEO3 AUTOMATOR</h1>
       </header>
 
       <main className="app-main">
@@ -180,7 +180,7 @@ function App() {
 
         {/* Upload Section */}
         <section className="section">
-          <h2>1. Upload Prompts</h2>
+          <h2>1. Tải Lên Prompts</h2>
           <div className="upload-area">
             <input
               ref={fileInputRef}
@@ -194,24 +194,24 @@ function App() {
               onClick={() => fileInputRef.current?.click()}
               disabled={isRunning}
             >
-              📁 Choose File (TXT or CSV)
+              📁 Chọn File (TXT hoặc CSV)
             </button>
             {csvFileName && <span className="file-name">📄 {csvFileName}</span>}
           </div>
           <small className="upload-help">
-            💡 Each line = 1 prompt. Supports .txt and .csv files.
+            💡 Mỗi dòng = 1 prompt. Hỗ trợ file .txt và .csv
           </small>
         </section>
 
         {/* Settings Section */}
         <section className="section">
-          <h2>2. Settings</h2>
+          <h2>2. Cài Đặt</h2>
           <VeoSettings
             settings={{
               aspectRatio: settings.aspectRatio || "Landscape (16:9)",
               outputs: settings.outputs || 1,
               model: settings.model || "Veo 3.1 - Fast",
-              outputDir: settings.outputDir || "dist/videos",
+              outputDir: settings.outputDir || "outputs",
             }}
             onChange={(veoSettings) => {
               setSettings({
@@ -225,27 +225,12 @@ function App() {
             }}
             disabled={isRunning}
           />
-
-          <div className="setting-item" style={{ marginTop: '16px' }}>
-            <label htmlFor="useSemaphore">
-              <input
-                id="useSemaphore"
-                type="checkbox"
-                checked={settings.useSemaphore || false}
-                onChange={(e) =>
-                  setSettings({ useSemaphore: e.target.checked })
-                }
-                disabled={isRunning}
-              />
-              Use Semaphore Mode (Max 5 concurrent jobs)
-            </label>
-          </div>
         </section>
 
         {/* Prompts List */}
         {prompts.length > 0 && (
           <section className="section">
-            <h2>3. Prompts ({prompts.length})</h2>
+            <h2>3. Danh Sách Prompts ({prompts.length})</h2>
             <div className="prompts-list">
               {prompts.slice(0, 5).map((prompt, index) => (
                 <div key={index} className="prompt-item">
@@ -255,7 +240,7 @@ function App() {
               ))}
               {prompts.length > 5 && (
                 <div className="prompt-item more">
-                  ... and {prompts.length - 5} more
+                  ... và {prompts.length - 5} prompts khác
                 </div>
               )}
             </div>
@@ -269,11 +254,11 @@ function App() {
             onClick={handleStartAutomation}
             disabled={isRunning || prompts.length === 0 || !selectedProfile}
           >
-            {isRunning ? "⏳ Running..." : "▶️ Start Automation"}
+            {isRunning ? "⏳ Đang Chạy..." : "▶️ Bắt Đầu Tự Động"}
           </button>
           {!selectedProfile && prompts.length > 0 && (
             <p className="warning-text">
-              ⚠️ Please select a Chrome profile to continue
+              ⚠️ Vui lòng chọn Chrome profile để tiếp tục
             </p>
           )}
         </section>
@@ -283,7 +268,7 @@ function App() {
           <section className="section">
             <div className="progress-container">
               <div className="progress-header">
-                <h3>⚡ Progress</h3>
+                <h3>⚡ Tiến Độ</h3>
                 <span className="progress-stats">
                   {progress.current || 0} / {progress.total || prompts.length} prompts
                 </span>
@@ -302,7 +287,7 @@ function App() {
               </div>
               <div className="progress-status">
                 <span className="status-icon">🔄</span>
-                <span className="status-text">{progress.status || "Processing..."}</span>
+                <span className="status-text">{progress.status || "Đang xử lý..."}</span>
               </div>
             </div>
           </section>
@@ -312,13 +297,13 @@ function App() {
         {logs.length > 0 && (
           <section className="section">
             <div className="section-header">
-              <h2>📋 Activity Log</h2>
+              <h2>📋 Nhật Ký Hoạt Động</h2>
               <button
                 className="btn-clear-logs"
                 onClick={() => setLogs([])}
                 disabled={isRunning}
               >
-                Clear
+                Xóa
               </button>
             </div>
             <div className="logs-container">
@@ -341,22 +326,22 @@ function App() {
         {results.length > 0 && (
           <section className="section">
             <div className="section-header">
-              <h2>🎬 Results</h2>
+              <h2>🎬 Kết Quả</h2>
               <div className="results-header-actions">
                 <div className="results-stats">
                   <span className="stat-success">
-                    ✅ {results.filter(r => r.status === "success").length} Success
+                    ✅ {results.filter(r => r.status === "success").length} Thành Công
                   </span>
                   <span className="stat-failed">
-                    ❌ {results.filter(r => r.status !== "success").length} Failed
+                    ❌ {results.filter(r => r.status !== "success").length} Thất Bại
                   </span>
                 </div>
                 <button
                   className="btn-open-folder"
                   onClick={handleOpenOutputFolder}
-                  title="Open output folder"
+                  title="Mở thư mục output"
                 >
-                  📁 Open Folder
+                  📁 Mở Thư Mục
                 </button>
               </div>
             </div>
@@ -369,7 +354,7 @@ function App() {
                   <div className="result-header">
                     <span className="result-number">#{index + 1}</span>
                     <span className={`result-badge ${result.status === "success" ? "badge-success" : "badge-failed"}`}>
-                      {result.status === "success" ? "✓ Success" : "✗ Failed"}
+                      {result.status === "success" ? "✓ Thành Công" : "✗ Thất Bại"}
                     </span>
                   </div>
                   <div className="result-prompt">
@@ -394,6 +379,15 @@ function App() {
           </section>
         )}
       </main>
+
+      <footer className="app-footer">
+        <div className="footer-signature">
+          VEO3 Automator — Cinematic Red War Edition
+        </div>
+        <div className="footer-credit">
+          Designed & Engineered by NguyenPT · 2025
+        </div>
+      </footer>
     </div>
   );
 }

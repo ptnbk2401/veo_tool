@@ -81,8 +81,8 @@ function VeoSettings({ settings, onChange, disabled = false }) {
           >
             <option value="Veo 3.1 - Fast">⚡ Veo 3.1 - Fast</option>
             <option value="Veo 3.1 - Quality">✨ Veo 3.1 - Quality</option>
-            <option value="Veo 2 - Fast">Veo 2 - Fast</option>
-            <option value="Veo 2 - Quality">Veo 2 - Quality</option>
+            <option value="Veo 2 - Fast">⚡ Veo 2 - Fast</option>
+            <option value="Veo 2 - Quality">✨ Veo 2 - Quality</option>
           </select>
         </div>
       </div>
@@ -94,10 +94,10 @@ function VeoSettings({ settings, onChange, disabled = false }) {
           <input
             id="veo-output-dir"
             type="text"
-            value={settings.outputDir || "dist/videos"}
+            value={settings.outputDir || "outputs"}
             onChange={(e) => handleChange("outputDir", e.target.value)}
             disabled={disabled}
-            placeholder="dist/videos"
+            placeholder="outputs"
           />
           <button
             type="button"

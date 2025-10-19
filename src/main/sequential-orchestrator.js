@@ -29,7 +29,7 @@ class SequentialOrchestrator {
     this.POLL_JITTER_MS = 250;
     this.DOWNLOAD_CONCURRENCY = settings.downloadConcurrency || 5;
     this.T_TIMEOUT_PROMPT = 210000; // 180-240s, use 210s
-    this.OUTPUT_DIR = settings.outputDir || "dist/videos";
+    this.OUTPUT_DIR = settings.outputDir || "outputs";
 
     fs.ensureDirSync(this.OUTPUT_DIR);
 

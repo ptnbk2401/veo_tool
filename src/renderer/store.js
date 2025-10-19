@@ -12,7 +12,7 @@ const useStore = create((set) => ({
     aspectRatio: "Landscape (16:9)",
     outputs: 1,
     model: "Veo 3.1 - Fast",
-    outputDir: "dist/videos",
+    outputDir: "outputs",
     // Additional Settings
     useSemaphore: false,
   },

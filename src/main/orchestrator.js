@@ -19,7 +19,7 @@ class VeoOrchestrator {
     this.POLLER_INTERVAL_MS = 2000; // 1.5-2.5s base
     this.POLLER_JITTER_MS = 250;
     this.DOWNLOAD_CONCURRENCY = settings.downloadConcurrency || 5;
-    this.OUTPUT_DIR = settings.outputDir || "dist/videos";
+    this.OUTPUT_DIR = settings.outputDir || "outputs";
 
     // Ensure output directory exists
     fs.ensureDirSync(this.OUTPUT_DIR);

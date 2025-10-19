@@ -47,8 +47,11 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "../../dist-renderer/index.html"));
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, load built files
-    mainWindow.loadFile(path.join(__dirname, "../../dist-renderer/index.html"));
+    // In production, load from app resources
+    const rendererPath = app.isPackaged
+      ? path.join(process.resourcesPath, "dist-renderer/index.html")
+      : path.join(__dirname, "../../dist-renderer/index.html");
+    mainWindow.loadFile(rendererPath);
   }
 
   // Show window when ready to prevent visual flash

@@ -24,7 +24,7 @@ class CDPOrchestrator {
     this.SUBMIT_INTERVAL_MS = 5000; // 5s between submits
     this.POLL_INTERVAL_MS = 2000; // 2s polling
     this.DOWNLOAD_CONCURRENCY = settings.downloadConcurrency || 5;
-    this.OUTPUT_DIR = settings.outputDir || "dist/videos";
+    this.OUTPUT_DIR = settings.outputDir || "outputs";
 
     // Ensure output directory exists
     fs.ensureDirSync(this.OUTPUT_DIR);

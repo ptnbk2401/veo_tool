@@ -31,7 +31,7 @@ function ProfileManager({ onProfileSelected }) {
 
   const handleCreateProfile = async () => {
     if (!newProfileName.trim()) {
-      alert("Please enter a profile name");
+      alert("Vui lòng nhập tên profile");
       return;
     }
 
@@ -45,10 +45,10 @@ function ProfileManager({ onProfileSelected }) {
       setNewProfileName("");
       setShowCreateModal(false);
       alert(
-        `Profile "${profile.name}" created successfully!\n\nNext step: Login to Google Flow`,
+        `Profile "${profile.name}" đã được tạo thành công!\n\nBước tiếp theo: Đăng nhập Google Flow`,
       );
     } catch (error) {
-      alert(`Failed to create profile: ${error.message}`);
+      alert(`Không thể tạo profile: ${error.message}`);
     } finally {
       setIsCreating(false);
     }
@@ -59,15 +59,15 @@ function ProfileManager({ onProfileSelected }) {
     try {
       await window.electronAPI.openProfileForLogin(profile.id);
       alert(
-        `Chrome opened with profile "${profile.name}".\n\n` +
-          `Please:\n` +
-          `1. Login to Google Flow (https://labs.google/fx/tools/flow)\n` +
-          `2. Verify you can access Veo 3\n` +
-          `3. Close Chrome when done\n\n` +
-          `The session will be saved automatically.`,
+        `Chrome đã mở với profile "${profile.name}".\n\n` +
+          `Vui lòng:\n` +
+          `1. Đăng nhập Google Flow (https://labs.google/fx/tools/flow)\n` +
+          `2. Xác nhận bạn có thể truy cập Veo 3\n` +
+          `3. Đóng Chrome khi hoàn tất\n\n` +
+          `Session sẽ được lưu tự động.`,
       );
     } catch (error) {
-      alert(`Failed to open profile: ${error.message}`);
+      alert(`Không thể mở profile: ${error.message}`);
     } finally {
       setIsLoggingIn(false);
     }
@@ -80,7 +80,7 @@ function ProfileManager({ onProfileSelected }) {
 
   const handleDeleteProfile = async (profile) => {
     if (
-      !confirm(`Delete profile "${profile.name}"?\n\nThis cannot be undone.`)
+      !confirm(`Xóa profile "${profile.name}"?\n\nHành động này không thể hoàn tác.`)
     ) {
       return;
     }
@@ -95,7 +95,7 @@ function ProfileManager({ onProfileSelected }) {
         onProfileSelected(newSelected || null);
       }
     } catch (error) {
-      alert(`Failed to delete profile: ${error.message}`);
+      alert(`Không thể xóa profile: ${error.message}`);
     }
   };
 
@@ -105,18 +105,18 @@ function ProfileManager({ onProfileSelected }) {
 
       if (result.isValid) {
         alert(
-          `Profile "${profile.name}" is valid!\n\n` +
-            `Status: ${result.status}\n` +
-            `Session: ${result.hasSession ? "Active" : "Not logged in"}`,
+          `Profile "${profile.name}" hợp lệ!\n\n` +
+            `Trạng thái: ${result.status}\n` +
+            `Session: ${result.hasSession ? "Đang hoạt động" : "Chưa đăng nhập"}`,
         );
       } else {
         alert(
-          `Profile "${profile.name}" has issues:\n\n` +
-            `${result.error || "Please login again"}`,
+          `Profile "${profile.name}" có vấn đề:\n\n` +
+            `${result.error || "Vui lòng đăng nhập lại"}`,
         );
       }
     } catch (error) {
-      alert(`Failed to test profile: ${error.message}`);
+      alert(`Không thể kiểm tra profile: ${error.message}`);
     }
   };
 
@@ -128,18 +128,18 @@ function ProfileManager({ onProfileSelected }) {
           className="btn btn-primary"
           onClick={() => setShowCreateModal(true)}
         >
-          + New Profile
+          + Tạo Profile
         </button>
       </div>
 
       {profiles.length === 0 ? (
         <div className="empty-state">
-          <p>No profiles yet. Create one to get started.</p>
+          <p>Chưa có profile nào. Tạo profile để bắt đầu.</p>
           <button
             className="btn btn-primary"
             onClick={() => setShowCreateModal(true)}
           >
-            Create First Profile
+            Tạo Profile Đầu Tiên
           </button>
         </div>
       ) : (
@@ -154,11 +154,11 @@ function ProfileManager({ onProfileSelected }) {
                 <div className="profile-name">
                   {profile.name}
                   {selectedProfile?.id === profile.id && (
-                    <span className="badge-selected">✓ Selected</span>
+                    <span className="badge-selected">✓ Đã chọn</span>
                   )}
                 </div>
                 <div className="profile-meta">
-                  Created: {new Date(profile.createdAt).toLocaleDateString()}
+                  Tạo lúc: {new Date(profile.createdAt).toLocaleDateString('vi-VN')}
                 </div>
               </div>
 
@@ -170,6 +170,7 @@ function ProfileManager({ onProfileSelected }) {
                     handleLoginProfile(profile);
                   }}
                   disabled={isLoggingIn}
+                  title="Đăng nhập vào profile này"
                 >
                   🔐 Login
                 </button>
@@ -179,6 +180,7 @@ function ProfileManager({ onProfileSelected }) {
                     e.stopPropagation();
                     handleTestProfile(profile);
                   }}
+                  title="Kiểm tra trạng thái profile"
                 >
                   🧪 Test
                 </button>
@@ -188,8 +190,9 @@ function ProfileManager({ onProfileSelected }) {
                     e.stopPropagation();
                     handleDeleteProfile(profile);
                   }}
+                  title="Xóa profile này"
                 >
-                  🗑️ Delete
+                  🗑️
                 </button>
               </div>
             </div>
@@ -204,20 +207,20 @@ function ProfileManager({ onProfileSelected }) {
           onClick={() => setShowCreateModal(false)}
         >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Create New Profile</h3>
+            <h3>Tạo Profile Mới</h3>
             <p className="modal-description">
-              This will create a new isolated Chrome profile for VEO3
-              automation. Your personal Chrome data will not be affected.
+              Tạo một Chrome profile riêng biệt cho VEO3 automation. 
+              Dữ liệu Chrome cá nhân của bạn sẽ không bị ảnh hưởng.
             </p>
 
             <div className="form-group">
-              <label htmlFor="profileName">Profile Name:</label>
+              <label htmlFor="profileName">Tên Profile:</label>
               <input
                 id="profileName"
                 type="text"
                 value={newProfileName}
                 onChange={(e) => setNewProfileName(e.target.value)}
-                placeholder="e.g., My VEO3 Profile"
+                placeholder="VD: Profile VEO3 của tôi"
                 autoFocus
                 onKeyPress={(e) => {
                   if (e.key === "Enter") {
@@ -233,14 +236,14 @@ function ProfileManager({ onProfileSelected }) {
                 onClick={() => setShowCreateModal(false)}
                 disabled={isCreating}
               >
-                Cancel
+                Hủy
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleCreateProfile}
                 disabled={isCreating || !newProfileName.trim()}
               >
-                {isCreating ? "Creating..." : "Create Profile"}
+                {isCreating ? "Đang tạo..." : "Tạo Profile"}
               </button>
             </div>
           </div>

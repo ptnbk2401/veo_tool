@@ -155,7 +155,7 @@ async function automateWithAPIQueue(profilePath, prompts, settings = {}) {
       logger,
       {
         downloadConcurrency: settings.downloadConcurrency || 5,
-        outputDir: settings.outputDir || "dist/videos",
+        outputDir: settings.outputDir || "outputs",
         onProgress: settings.onProgress, // Pass progress callback to orchestrator
       },
     );
