@@ -102,11 +102,12 @@ class SequentialOrchestrator {
       }
 
       // Check if this prompt already has operations (prevent duplicate)
+      // BUT allow retry if retry_count > 0
       const existingOps = this.db.prepare(`
         SELECT COUNT(*) as count FROM operations WHERE prompt_id = ?
       `).get(prompt.id);
 
-      if (existingOps.count > 0) {
+      if (existingOps.count > 0 && prompt.retry_count === 0) {
         this.logger?.warn(`[CDP] Prompt ${prompt.idx} already has operations, ignoring duplicate submit response`);
         this.currentSubmittingPrompt = null;
         return;
@@ -159,18 +160,22 @@ class SequentialOrchestrator {
 
         // Stop polling for this prompt
         this.stopPromptPoller(operation.prompt_id);
-      } else if (newStatus === 'failed') {
-        const prompt = this.db.prepare('SELECT idx FROM prompts WHERE id = ?').get(operation.prompt_id);
-        this.logger?.warn(`❌ [CDP] Prompt ${prompt?.idx} failed`);
+      } else if (newStatus === 'failed' || newStatus === 'timeout') {
+        const prompt = this.db.prepare('SELECT idx, retry_count, max_retries FROM prompts WHERE id = ?').get(operation.prompt_id);
+        const statusEmoji = newStatus === 'failed' ? '❌' : '⏱️';
+        this.logger?.warn(`${statusEmoji} [CDP] Prompt ${prompt?.idx} ${newStatus}`);
 
         // Stop polling for this prompt
         this.stopPromptPoller(operation.prompt_id);
-      } else if (newStatus === 'timeout') {
-        const prompt = this.db.prepare('SELECT idx FROM prompts WHERE id = ?').get(operation.prompt_id);
-        this.logger?.warn(`⏱️ [CDP] Prompt ${prompt?.idx} timed out`);
 
-        // Stop polling for this prompt
-        this.stopPromptPoller(operation.prompt_id);
+        // Attempt retry
+        const retryResult = this.db.retryFailedOperations(operation.prompt_id);
+        if (retryResult.canRetry) {
+          this.logger?.info(`🔄 [CDP] ${retryResult.reason}`);
+          // Prompt is now back to 'queued', will be picked up by submitter
+        } else {
+          this.logger?.error(`❌ [CDP] Prompt ${prompt?.idx} failed permanently: ${retryResult.reason}`);
+        }
       }
     } catch (error) {
       this.logger?.error(`[CDP] Error handling poll response: ${error.message}`);
@@ -378,11 +383,12 @@ class SequentialOrchestrator {
         }
 
         // IMPORTANT: Check if this prompt already has operations (prevent duplicate submission)
+        // BUT allow retry if retry_count > 0 (partial operations from previous attempt)
         const existingOps = this.db.prepare(`
           SELECT COUNT(*) as count FROM operations WHERE prompt_id = ?
         `).get(prompt.id);
 
-        if (existingOps.count > 0) {
+        if (existingOps.count > 0 && prompt.retry_count === 0) {
           this.logger?.warn(`[Submitter] Prompt ${prompt.idx} already has operations, skipping and resetting to done`);
           // This prompt was already submitted, mark it properly
           const newStatus = this.db.checkAndUpdatePromptStatus(prompt.id);
@@ -391,6 +397,11 @@ class SequentialOrchestrator {
             this.db.prepare(`UPDATE prompts SET status = 'in_progress' WHERE id = ?`).run(prompt.id);
           }
           return;
+        }
+
+        // Log retry info if applicable
+        if (prompt.retry_count > 0) {
+          this.logger?.info(`[Submitter] 🔄 Retry attempt ${prompt.retry_count} for prompt ${prompt.idx} (${existingOps.count} successful ops kept)`);
         }
 
         this.logger?.info(`[Submitter] Got prompt ${prompt.idx}: ${prompt.prompt_text.slice(0, 50)}...`);

@@ -43,11 +43,33 @@ class VeoDatabase {
     // Create tables
     this.createTables();
 
+    // Run migrations for existing databases
+    this.runMigrations();
+
     // DON'T run resume cleanup here - it will be called manually if needed
     // this.resumeCleanup();
 
     // Save initial state
     this.save();
+  }
+
+  /**
+   * Run database migrations
+   */
+  runMigrations() {
+    // Check if retry columns exist
+    const tableInfo = this.prepare(`PRAGMA table_info(prompts)`).all();
+    const hasRetryCount = tableInfo.some(col => col.name === 'retry_count');
+
+    if (!hasRetryCount) {
+      console.log('Running migration: Adding retry columns to prompts table...');
+      this.exec(`
+        ALTER TABLE prompts ADD COLUMN retry_count INTEGER DEFAULT 0;
+        ALTER TABLE prompts ADD COLUMN max_retries INTEGER DEFAULT 3;
+      `);
+      console.log('Migration completed: retry columns added');
+      this.save();
+    }
   }
 
   /**
@@ -66,7 +88,9 @@ class VeoDatabase {
         status TEXT CHECK(status IN ('queued','submitting','in_progress','done','failed','timeout')),
         submit_at TEXT,
         done_at TEXT,
-        error TEXT
+        error TEXT,
+        retry_count INTEGER DEFAULT 0,
+        max_retries INTEGER DEFAULT 3
       );
       CREATE INDEX IF NOT EXISTS ix_prompts_status ON prompts(status);
       CREATE UNIQUE INDEX IF NOT EXISTS ux_prompts_idx ON prompts(idx);
@@ -303,6 +327,76 @@ class VeoDatabase {
   }
 
   /**
+   * Retry failed/timeout operations for a prompt
+   * Returns: { canRetry: boolean, retriedCount: number, reason: string }
+   */
+  retryFailedOperations(promptId) {
+    const prompt = this.prepare(`SELECT * FROM prompts WHERE id = ?`).get(promptId);
+
+    if (!prompt) {
+      return { canRetry: false, retriedCount: 0, reason: 'Prompt not found' };
+    }
+
+    // Check if already at max retries
+    if (prompt.retry_count >= prompt.max_retries) {
+      return {
+        canRetry: false,
+        retriedCount: 0,
+        reason: `Max retries reached (${prompt.retry_count}/${prompt.max_retries})`,
+      };
+    }
+
+    // Get operations that need retry (failed or cancelled)
+    const failedOps = this.prepare(`
+      SELECT * FROM operations 
+      WHERE prompt_id = ? 
+      AND (status = ? OR status = ?)
+    `).all(promptId, OPERATION_STATUS.FAILED, OPERATION_STATUS.CANCELLED);
+
+    // Get successful operations count
+    const successfulOps = this.prepare(`
+      SELECT COUNT(*) as count FROM operations 
+      WHERE prompt_id = ? AND status = ?
+    `).get(promptId, OPERATION_STATUS.SUCCESSFUL);
+
+    if (failedOps.length === 0) {
+      return {
+        canRetry: false,
+        retriedCount: 0,
+        reason: 'No failed operations to retry',
+      };
+    }
+
+    // IMPORTANT: Delete ONLY failed/cancelled operations
+    // Keep successful ones to avoid re-submission
+    this.prepare(`
+      DELETE FROM operations 
+      WHERE prompt_id = ? 
+      AND (status = ? OR status = ?)
+    `).run(promptId, OPERATION_STATUS.FAILED, OPERATION_STATUS.CANCELLED);
+
+    // Reset prompt to queued and increment retry count
+    const now = new Date().toISOString();
+    this.prepare(`
+      UPDATE prompts 
+      SET status = 'queued',
+          retry_count = retry_count + 1,
+          done_at = NULL,
+          error = NULL,
+          submit_at = ?
+      WHERE id = ?
+    `).run(now, promptId);
+
+    this.save();
+
+    return {
+      canRetry: true,
+      retriedCount: failedOps.length,
+      reason: `Retrying ${failedOps.length} failed operations (${successfulOps.count} successful kept)`,
+    };
+  }
+
+  /**
    * Get all in-progress prompts with their operations
    */
   getInProgressPrompts() {
@@ -525,7 +619,9 @@ class VeoDatabase {
         SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
         SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done,
         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
-        SUM(CASE WHEN status = 'timeout' THEN 1 ELSE 0 END) as timeout
+        SUM(CASE WHEN status = 'timeout' THEN 1 ELSE 0 END) as timeout,
+        SUM(CASE WHEN retry_count > 0 THEN 1 ELSE 0 END) as retried,
+        AVG(retry_count) as avg_retry_count
       FROM prompts
     `).get();
 
