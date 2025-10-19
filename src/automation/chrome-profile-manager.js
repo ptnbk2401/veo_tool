@@ -1,0 +1,595 @@
+const fs = require("fs-extra");
+const path = require("path");
+const { v4: uuidv4 } = require("uuid");
+const { Builder } = require("selenium-webdriver");
+const chrome = require("selenium-webdriver/chrome");
+const SessionDetector = require("./session-detector");
+
+class ChromeProfileManager {
+  constructor() {
+    this.profilesFile = path.join(process.cwd(), "config", "profiles.json");
+    this.profiles = new Map();
+    this.activeSessions = new Map();
+    this.sessionDetector = new SessionDetector();
+    this.init();
+  }
+
+  async init() {
+    // Ensure config directory exists
+    await fs.ensureDir(path.dirname(this.profilesFile));
+
+    // Load existing profiles
+    await this.loadProfiles();
+  }
+
+  async loadProfiles() {
+    try {
+      if (await fs.pathExists(this.profilesFile)) {
+        const data = await fs.readJson(this.profilesFile);
+        this.profiles = new Map(Object.entries(data));
+      }
+    } catch (error) {
+      console.error("Failed to load profiles:", error);
+      this.profiles = new Map();
+    }
+  }
+
+  async saveProfiles() {
+    try {
+      const data = Object.fromEntries(this.profiles);
+      console.log(
+        "ChromeProfileManager: Saving profiles to file:",
+        this.profilesFile,
+      );
+      console.log("ChromeProfileManager: Profiles data:", data);
+      await fs.writeJson(this.profilesFile, data, { spaces: 2 });
+      console.log("ChromeProfileManager: Profiles saved successfully");
+    } catch (error) {
+      console.error("Failed to save profiles:", error);
+      throw error;
+    }
+  }
+
+  generateId() {
+    return uuidv4();
+  }
+
+  async addProfile(profileData) {
+    const { name, path: profilePath } = profileData;
+
+    console.log("ChromeProfileManager: Adding profile:", { name, profilePath });
+
+    // Validate input
+    if (!name || !profilePath) {
+      throw new Error("Profile name and path are required");
+    }
+
+    // Normalize path to avoid duplicate path issues
+    const normalizedPath = path.resolve(profilePath);
+    console.log("ChromeProfileManager: Normalized path:", normalizedPath);
+
+    // Validate profile path exists
+    if (!(await fs.pathExists(normalizedPath))) {
+      throw new Error(`Profile path does not exist: ${normalizedPath}`);
+    }
+
+    // Check if profile name already exists (names must be unique)
+    for (const [id, profile] of this.profiles) {
+      if (profile.name.toLowerCase() === name.toLowerCase()) {
+        throw new Error(
+          `Profile with name "${name}" already exists. Please choose a different name.`,
+        );
+      }
+    }
+
+    // Check if exact same path already exists with same name
+    for (const [id, profile] of this.profiles) {
+      if (
+        path.resolve(profile.path) === normalizedPath &&
+        profile.name === name
+      ) {
+        throw new Error(
+          `Profile "${name}" with this exact path already exists`,
+        );
+      }
+    }
+
+    const profileId = this.generateId();
+    const profile = {
+      id: profileId,
+      name,
+      path: normalizedPath,
+      isActive: false,
+      lastSessionCheck: null,
+      sessionStatus: "unknown",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    console.log("ChromeProfileManager: Created profile object:", profile);
+    this.profiles.set(profileId, profile);
+    console.log(
+      "ChromeProfileManager: Profile added to Map, total profiles:",
+      this.profiles.size,
+    );
+
+    await this.saveProfiles();
+    console.log("ChromeProfileManager: Profile saved to file");
+
+    return profile;
+  }
+
+  async removeProfile(profileId) {
+    if (!this.profiles.has(profileId)) {
+      throw new Error("Profile not found");
+    }
+
+    // Close any active session for this profile
+    if (this.activeSessions.has(profileId)) {
+      await this.closeSession(profileId);
+    }
+
+    this.profiles.delete(profileId);
+    await this.saveProfiles();
+
+    return true;
+  }
+
+  getProfile(profileId) {
+    return this.profiles.get(profileId) || null;
+  }
+
+  listProfiles() {
+    return Array.from(this.profiles.values());
+  }
+
+  findProfileByPath(profilePath) {
+    const normalizedPath = path.resolve(profilePath);
+    for (const [id, profile] of this.profiles) {
+      if (path.resolve(profile.path) === normalizedPath) {
+        return profile;
+      }
+    }
+    return null;
+  }
+
+  findProfileByName(name) {
+    for (const [id, profile] of this.profiles) {
+      if (profile.name.toLowerCase() === name.toLowerCase()) {
+        return profile;
+      }
+    }
+    return null;
+  }
+
+  async addOrUpdateProfile(profileData) {
+    const { name, path: profilePath } = profileData;
+
+    // Check if profile with this path already exists
+    const existingProfile = this.findProfileByPath(profilePath);
+
+    if (existingProfile) {
+      // Update existing profile with new name if different
+      if (existingProfile.name !== name) {
+        // Check if new name conflicts with other profiles
+        const nameConflict = this.findProfileByName(name);
+        if (nameConflict && nameConflict.id !== existingProfile.id) {
+          throw new Error(
+            `Profile name "${name}" is already used by another profile`,
+          );
+        }
+
+        return await this.updateProfile(existingProfile.id, { name });
+      }
+
+      // Return existing profile if name is same
+      return existingProfile;
+    }
+
+    // Create new profile if path doesn't exist
+    return await this.addProfile(profileData);
+  }
+
+  async updateProfile(profileId, updateData) {
+    const profile = this.profiles.get(profileId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    // Validate path if being updated
+    if (updateData.path && updateData.path !== profile.path) {
+      if (!(await fs.pathExists(updateData.path))) {
+        throw new Error(`Profile path does not exist: ${updateData.path}`);
+      }
+    }
+
+    // Update profile
+    const updatedProfile = {
+      ...profile,
+      ...updateData,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.profiles.set(profileId, updatedProfile);
+    await this.saveProfiles();
+
+    return updatedProfile;
+  }
+
+  async updateProfileStatus(profileId, sessionStatus) {
+    const profile = this.profiles.get(profileId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    profile.sessionStatus = sessionStatus;
+    profile.lastSessionCheck = new Date().toISOString();
+    profile.updatedAt = new Date().toISOString();
+
+    this.profiles.set(profileId, profile);
+    await this.saveProfiles();
+
+    return profile;
+  }
+
+  validateProfilePath(profilePath) {
+    // Basic validation for Chrome profile directory structure
+    const requiredFiles = ["Preferences", "Local State"];
+
+    for (const file of requiredFiles) {
+      const filePath = path.join(profilePath, file);
+      if (!fs.existsSync(filePath)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  async closeSession(profileId) {
+    const session = this.activeSessions.get(profileId);
+    if (session) {
+      try {
+        await session.quit();
+      } catch (error) {
+        console.error(`Error closing session for profile ${profileId}:`, error);
+      }
+      this.activeSessions.delete(profileId);
+    }
+  }
+
+  async closeAllSessions() {
+    const promises = Array.from(this.activeSessions.keys()).map((profileId) =>
+      this.closeSession(profileId),
+    );
+    await Promise.all(promises);
+  }
+
+  getActiveSessionCount() {
+    return this.activeSessions.size;
+  }
+
+  isSessionActive(profileId) {
+    return this.activeSessions.has(profileId);
+  }
+
+  async createBrowserSession(profileId, options = {}) {
+    console.log(
+      `🚀 ChromeProfileManager: Creating browser session for profile ${profileId}`,
+    );
+    const profile = this.getProfile(profileId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    // Close existing session if any
+    if (this.activeSessions.has(profileId)) {
+      await this.closeSession(profileId);
+    }
+
+    try {
+      const chromeOptions = new chrome.Options();
+
+      // Set user data directory to the profile path
+      chromeOptions.addArguments(`--user-data-dir=${profile.path}`);
+
+      // Security and stealth options to avoid detection and "not secure" warnings
+      chromeOptions.addArguments("--no-first-run");
+      chromeOptions.addArguments("--no-default-browser-check");
+      chromeOptions.addArguments(
+        "--disable-blink-features=AutomationControlled",
+      );
+      chromeOptions.addArguments("--disable-extensions");
+      chromeOptions.addArguments("--disable-plugins-discovery");
+      chromeOptions.addArguments("--disable-web-security");
+      chromeOptions.addArguments("--allow-running-insecure-content");
+      chromeOptions.addArguments("--disable-features=VizDisplayCompositor");
+      chromeOptions.addArguments("--disable-ipc-flooding-protection");
+      chromeOptions.addArguments("--no-sandbox");
+      chromeOptions.addArguments("--disable-dev-shm-usage");
+      chromeOptions.addArguments("--ignore-certificate-errors");
+      chromeOptions.addArguments("--ignore-ssl-errors");
+      chromeOptions.addArguments("--ignore-certificate-errors-spki-list");
+      chromeOptions.addArguments("--disable-background-timer-throttling");
+      chromeOptions.addArguments("--disable-backgrounding-occluded-windows");
+      chromeOptions.addArguments("--disable-renderer-backgrounding");
+
+      // Set realistic user agent
+      chromeOptions.addArguments(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      );
+
+      // Exclude automation switches
+      chromeOptions.excludeSwitches(["enable-automation"]);
+
+      // Additional Chrome options
+      if (options.headless) {
+        chromeOptions.addArguments("--headless");
+      }
+
+      // Set window size
+      if (options.windowSize) {
+        chromeOptions.addArguments(
+          `--window-size=${options.windowSize.width},${options.windowSize.height}`,
+        );
+      }
+
+      // Set preferences to avoid security warnings and automation detection
+      chromeOptions.setUserPreferences({
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_settings.popups": 0,
+        "profile.managed_default_content_settings.images": 1,
+        "profile.default_content_setting_values.media_stream": 2,
+        "profile.default_content_setting_values.geolocation": 2,
+        "security.insecure_form_warning.enabled": false,
+        "security.mixed_form_warning.enabled": false,
+      });
+
+      const driver = await new Builder()
+        .forBrowser("chrome")
+        .setChromeOptions(chromeOptions)
+        .build();
+
+      // Execute stealth scripts to remove automation indicators and security warnings
+      try {
+        await driver.executeScript(`
+          // Remove webdriver property
+          Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined,
+          });
+
+          // Remove automation indicators
+          delete navigator.__webdriver_evaluate;
+          delete navigator.__webdriver_script_function;
+          delete navigator.__webdriver_script_func;
+          delete navigator.__webdriver_script_fn;
+          delete navigator.__webdriver_unwrapped;
+          delete navigator.__driver_evaluate;
+          delete navigator.__webdriver_evaluate__;
+          delete navigator.__selenium_evaluate;
+          delete navigator.__fxdriver_evaluate;
+          delete navigator.__driver_unwrapped;
+          delete navigator.__webdriver_unwrapped__;
+          delete navigator.__selenium_unwrapped;
+          delete navigator.__fxdriver_unwrapped;
+
+          // Override chrome runtime
+          if (navigator.chrome) {
+            navigator.chrome.runtime = undefined;
+          }
+
+          // Override permissions to avoid security prompts
+          const originalQuery = window.navigator.permissions.query;
+          window.navigator.permissions.query = (parameters) => (
+            parameters.name === 'notifications' ?
+              Promise.resolve({ state: Notification.permission }) :
+              originalQuery(parameters)
+          );
+
+          // Remove security warning indicators
+          if (window.chrome && window.chrome.webstore) {
+            delete window.chrome.webstore;
+          }
+        `);
+      } catch (scriptError) {
+        console.warn("Failed to execute stealth scripts:", scriptError);
+        // Continue anyway, stealth scripts are not critical
+      }
+
+      // Store the session
+      this.activeSessions.set(profileId, driver);
+
+      // Update profile status
+      await this.updateProfileStatus(profileId, "active");
+
+      console.log(
+        `✅ ChromeProfileManager: Browser session created successfully, returning driver`,
+      );
+      return driver;
+    } catch (error) {
+      console.error(
+        `Failed to create browser session for profile ${profileId}:`,
+        error,
+      );
+      await this.updateProfileStatus(profileId, "error");
+      throw error;
+    }
+  }
+
+  async testProfileSession(profileId, options = {}) {
+    const profile = this.getProfile(profileId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    let driver = null;
+    try {
+      // Create a temporary browser session (visible for user interaction)
+      driver = await this.createBrowserSession(profileId, {
+        ...options,
+        headless: false, // Always visible for testing so user can login
+      });
+
+      // Check VEO3 login status
+      console.log("🔍 ChromeProfileManager: Checking VEO3 login status...");
+      const loginStatus =
+        await this.sessionDetector.checkVEO3LoginStatus(driver);
+      console.log(
+        `✅ ChromeProfileManager: Login status received: ${JSON.stringify(loginStatus)}`,
+      );
+
+      // Update profile with session status
+      const sessionStatus = loginStatus.isLoggedIn ? "valid" : "expired";
+      console.log(
+        `📝 ChromeProfileManager: Updating profile status to: ${sessionStatus}`,
+      );
+      await this.updateProfileStatus(profileId, sessionStatus);
+      console.log("✅ ChromeProfileManager: Profile status updated");
+
+      // If not logged in, keep browser open for manual login
+      if (!loginStatus.isLoggedIn) {
+        console.log(
+          `❌ ChromeProfileManager: Profile ${profileId} not logged in. Browser left open for manual login.`,
+        );
+        return {
+          success: true,
+          isLoggedIn: loginStatus.isLoggedIn,
+          sessionStatus,
+          userInfo: loginStatus.userInfo,
+          method: loginStatus.method,
+          currentUrl: loginStatus.currentUrl,
+          message:
+            "Browser opened for manual login. Please login to VEO3 and close the browser when done.",
+          keepBrowserOpen: true,
+        };
+      }
+
+      console.log(
+        `✅ ChromeProfileManager: Profile ${profileId} is logged in, proceeding...`,
+      );
+
+      // If logged in, close browser and return success
+      if (driver) {
+        try {
+          await driver.quit();
+          this.activeSessions.delete(profileId);
+        } catch (e) {
+          console.error("Error closing test session:", e);
+        }
+      }
+
+      return {
+        success: true,
+        isLoggedIn: loginStatus.isLoggedIn,
+        sessionStatus,
+        userInfo: loginStatus.userInfo,
+        method: loginStatus.method,
+        currentUrl: loginStatus.currentUrl,
+        message: "Profile test completed successfully.",
+      };
+    } catch (error) {
+      console.error(`Session test failed for profile ${profileId}:`, error);
+      await this.updateProfileStatus(profileId, "error");
+
+      // Close browser on error
+      if (driver) {
+        try {
+          await driver.quit();
+          this.activeSessions.delete(profileId);
+        } catch (e) {
+          console.error("Error closing test session:", e);
+        }
+      }
+
+      return {
+        success: false,
+        isLoggedIn: false,
+        sessionStatus: "error",
+        error: error.message,
+      };
+    }
+  }
+
+  async openBrowserForLogin(profileId, options = {}) {
+    const profile = this.getProfile(profileId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    try {
+      // Create browser session (visible for manual login)
+      const driver = await this.createBrowserSession(profileId, {
+        ...options,
+        headless: false, // Always visible for login
+      });
+
+      // Just open Google homepage - let user navigate and login manually
+      await driver.get("https://www.google.com");
+
+      // Update profile status to indicate browser is open
+      await this.updateProfileStatus(profileId, "browser_open");
+
+      return {
+        success: true,
+        message:
+          "Browser opened successfully. Please login manually and close the browser when done.",
+        // Driver is stored in activeSessions, don't return it as it can't be serialized
+        profileId: profileId,
+      };
+    } catch (error) {
+      console.error(`Failed to open browser for profile ${profileId}:`, error);
+      await this.updateProfileStatus(profileId, "error");
+      throw error;
+    }
+  }
+
+  async loginToVEO3(profileId, options = {}) {
+    const profile = this.getProfile(profileId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    let driver = null;
+    try {
+      // Create browser session (visible for manual login)
+      driver = await this.createBrowserSession(profileId, {
+        ...options,
+        headless: false, // Always visible for login
+      });
+
+      // Check current login status
+      const currentStatus =
+        await this.sessionDetector.checkVEO3LoginStatus(driver);
+
+      if (currentStatus.isLoggedIn) {
+        await this.updateProfileStatus(profileId, "valid");
+        return {
+          success: true,
+          message: "Already logged in",
+          userInfo: currentStatus.userInfo,
+        };
+      }
+
+      // Prompt for manual login
+      const loginResult = await this.sessionDetector.promptManualLogin(driver);
+
+      await this.updateProfileStatus(profileId, "valid");
+
+      return {
+        success: true,
+        message: "Login completed successfully",
+        userInfo: loginResult.userInfo,
+      };
+    } catch (error) {
+      console.error(`Login failed for profile ${profileId}:`, error);
+      await this.updateProfileStatus(profileId, "error");
+
+      throw error;
+    } finally {
+      // Keep the session open after successful login
+      // User can close it manually or it will be managed by the automation
+    }
+  }
+}
+
+module.exports = ChromeProfileManager;

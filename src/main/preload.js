@@ -1,0 +1,17 @@
+const { contextBridge, ipcRenderer } = require("electron");
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld("electronAPI", {
+  // Automation
+  startAutomation: (config) => ipcRenderer.invoke("automation:start", config),
+
+  // Profile management
+  listProfiles: () => ipcRenderer.invoke("profiles:list"),
+  createProfile: (data) => ipcRenderer.invoke("profiles:create", data),
+  deleteProfile: (profileId) =>
+    ipcRenderer.invoke("profiles:delete", profileId),
+  testProfile: (profileId) => ipcRenderer.invoke("profiles:test", profileId),
+  openProfileForLogin: (profileId) =>
+    ipcRenderer.invoke("profiles:openForLogin", profileId),
+});
