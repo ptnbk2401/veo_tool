@@ -7,8 +7,13 @@ const useStore = create((set) => ({
 
   // Settings
   settings: {
-    aspectRatio: "16:9",
-    outputCount: 1,
+    // VEO Settings
+    mode: "Text to Video",
+    aspectRatio: "Landscape (16:9)",
+    outputs: 1,
+    model: "Veo 3.1 - Fast",
+    outputDir: "dist/videos",
+    // Additional Settings
     useSemaphore: false,
   },
   setSettings: (settings) =>

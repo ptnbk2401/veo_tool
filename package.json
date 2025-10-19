@@ -16,6 +16,7 @@
     "kill-chrome": "node kill-chrome.js",
     "test-session": "node test-session.js",
     "test": "jest",
+    "extract-google-flow": "node extract-google-flow-dom.js",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [

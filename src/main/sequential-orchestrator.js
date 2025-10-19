@@ -1,6 +1,6 @@
 const path = require("path");
 const fs = require("fs-extra");
-const { By } = require("selenium-webdriver");
+const { By, Key } = require("selenium-webdriver");
 
 /**
  * Sequential Orchestrator - Implements VEO_Sequential_API_Flow.md
@@ -13,6 +13,7 @@ class SequentialOrchestrator {
     this.db = db;
     this.logger = logger;
     this.settings = settings;
+    this.onProgress = settings.onProgress || (() => {}); // Progress callback
 
     // State
     this.running = false;
@@ -289,7 +290,10 @@ class SequentialOrchestrator {
         const stats = this.db.getStats();
         const inflight = stats.in_progress || 0;
         const queued = stats.queued || 0;
-
+        const done = stats.done || 0;
+        const failed = stats.failed || 0;
+        const timeout = stats.timeout || 0;
+        
         // Also count submitting prompts
         const submitting = this.db
           .prepare(
@@ -299,6 +303,27 @@ class SequentialOrchestrator {
           )
           .get();
         const submittingCount = submitting.count || 0;
+        
+        // Calculate progress with correct total
+        const completed = done + failed + timeout;
+        const total = completed + inflight + queued + submittingCount;
+        
+        console.log(`[Orchestrator] Stats: completed=${completed}, total=${total}, inflight=${inflight}, queued=${queued}, submitting=${submittingCount}`);
+        
+        // Send progress update
+        if (total > 0 && this.onProgress) {
+          let status = `Processing: ${inflight} in progress, ${queued} queued`;
+          if (submittingCount > 0) {
+            status = `Processing: ${submittingCount} submitting, ${inflight} in progress, ${queued} queued`;
+          }
+          if (completed > 0) {
+            status = `Completed ${completed}/${total} prompts (${done} success, ${failed} failed)`;
+          }
+          console.log(`[Orchestrator] Calling onProgress: ${completed}/${total} - ${status}`);
+          this.onProgress(completed, status);
+        } else {
+          console.log(`[Orchestrator] Not calling onProgress: total=${total}, hasCallback=${!!this.onProgress}`);
+        }
 
         // Check if all done (including submitting prompts)
         if (inflight === 0 && queued === 0 && submittingCount === 0) {
@@ -324,7 +349,7 @@ class SequentialOrchestrator {
             `[Completion] Waiting: queued=${queued}, submitting=${submittingCount}, inflight=${inflight}`,
           );
         }
-      }, 2000);
+      }, 500); // Check every 500ms for more frequent progress updates
     });
   }
 
@@ -618,52 +643,56 @@ class SequentialOrchestrator {
         }
       }
 
-      // Clear textarea first
+      // Hybrid approach: Set bulk with JS, then trigger with real keypress
+      // Step 1: Clear and set most of the text with JavaScript (fast)
       await textarea.click();
       await this.driver.sleep(200);
       await textarea.clear();
       await this.driver.sleep(200);
-
-      // Input prompt character by character to trigger proper events
-      await textarea.sendKeys(promptText);
+      
+      // Set value with JavaScript (fast for long prompts)
+      await this.driver.executeScript(
+        `
+        const textarea = arguments[0];
+        const prompt = arguments[1];
+        
+        // Set value
+        textarea.value = prompt;
+        textarea.focus();
+      `,
+        textarea,
+        promptText,
+      );
+      
+      // Step 2: Add a space and delete it with real sendKeys to trigger events
+      // This ensures React/Vue detects the change properly
+      await textarea.sendKeys(" ");
+      await this.driver.sleep(100);
+      await textarea.sendKeys(Key.BACK_SPACE);
       await this.driver.sleep(500);
-
-      // Verify input
-      const value = await textarea.getAttribute("value");
-      if (!value || value.trim() !== promptText.trim()) {
-        // Fallback: use JavaScript
-        await this.driver.executeScript(
-          `
-          const textarea = arguments[0];
-          const prompt = arguments[1];
-          
-          // Clear
-          textarea.value = '';
-          textarea.focus();
-          
-          // Set value
-          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-          nativeInputValueSetter.call(textarea, prompt);
-          
-          // Trigger events that React/Vue listens to
-          const inputEvent = new Event('input', { bubbles: true });
-          const changeEvent = new Event('change', { bubbles: true });
-          textarea.dispatchEvent(inputEvent);
-          textarea.dispatchEvent(changeEvent);
-          
-          // Also trigger keyboard events
-          textarea.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-          textarea.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-          
-          textarea.focus();
-        `,
-          textarea,
-          promptText,
-        );
+      
+      // Wait for Generate button to be enabled (with timeout)
+      let buttonEnabled = false;
+      for (let i = 0; i < 10; i++) {
+        buttonEnabled = await this.driver.executeScript(`
+          const buttons = Array.from(document.querySelectorAll('button'));
+          for (const button of buttons) {
+            const text = button.textContent || '';
+            const ariaLabel = button.getAttribute('aria-label') || '';
+            if ((text.match(/tạo|generate|create/i) || ariaLabel.match(/tạo|generate|create/i)) && !button.disabled) {
+              return true;
+            }
+          }
+          return false;
+        `);
+        
+        if (buttonEnabled) break;
+        await this.driver.sleep(500);
       }
-
-      // Wait longer for UI to enable button
-      await this.driver.sleep(2000);
+      
+      if (!buttonEnabled) {
+        this.logger?.warn(`[Submitter] Generate button still disabled after 5s`);
+      }
 
       // Click Generate button
       const clicked = await this.driver.executeScript(`

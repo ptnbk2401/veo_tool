@@ -1,0 +1,150 @@
+/* VeoSettings.css - Simplified */
+
+.veo-settings {
+  margin-bottom: 16px;
+}
+
+.veo-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.veo-setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.veo-setting-item label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.veo-setting-item select,
+.veo-setting-item input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  transition: border-color 0.2s;
+}
+
+.veo-setting-item select:hover,
+.veo-setting-item input[type="number"]:hover {
+  border-color: #999;
+}
+
+.veo-setting-item select:focus,
+.veo-setting-item input[type="number"]:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.veo-setting-item select:disabled,
+.veo-setting-item input[type="number"]:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.veo-setting-item input[type="number"] {
+  width: 100%;
+}
+
+/* Readonly Select */
+.readonly-select {
+  background: #f5f5f5 !important;
+  cursor: not-allowed !important;
+  opacity: 0.8;
+}
+
+/* Output Folder */
+.veo-output-folder {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.veo-output-folder label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.veo-folder-input {
+  display: flex;
+  gap: 8px;
+}
+
+.veo-folder-input input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  transition: border-color 0.2s;
+}
+
+.veo-folder-input input:hover {
+  border-color: #999;
+}
+
+.veo-folder-input input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.veo-folder-input input:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.veo-browse-btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.veo-browse-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #999;
+}
+
+.veo-browse-btn:active:not(:disabled) {
+  background: #e5e5e5;
+}
+
+.veo-browse-btn:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .veo-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .veo-folder-input {
+    flex-direction: column;
+  }
+
+  .veo-browse-btn {
+    width: 100%;
+  }
+}

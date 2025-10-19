@@ -14,4 +14,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   testProfile: (profileId) => ipcRenderer.invoke("profiles:test", profileId),
   openProfileForLogin: (profileId) =>
     ipcRenderer.invoke("profiles:openForLogin", profileId),
+
+  // File system
+  selectFolder: () => ipcRenderer.invoke("fs:selectFolder"),
+  openFolder: (folderPath) => ipcRenderer.invoke("fs:openFolder", folderPath),
+
+  // Progress updates
+  onProgress: (callback) => {
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on("automation:progress", listener);
+    // Return unsubscribe function
+    return () => ipcRenderer.removeListener("automation:progress", listener);
+  },
 });

@@ -119,6 +119,28 @@ async function automateWithAPIQueue(profilePath, prompts, settings = {}) {
 
     await driver.sleep(2000);
 
+    // ========================================
+    // Configure VEO Settings (NEW)
+    // ========================================
+    if (settings.mode || settings.aspectRatio || settings.outputs || settings.model) {
+      logger.info("Configuring VEO settings...");
+      const { configureVEOSettings } = require('./veo-settings-integration');
+      
+      try {
+        await configureVEOSettings(driver, {
+          mode: settings.mode,
+          aspectRatio: settings.aspectRatio,
+          outputs: settings.outputs,
+          model: settings.model
+        }, logger);
+        logger.info("VEO settings configured successfully");
+      } catch (error) {
+        logger.warn(`Failed to configure VEO settings: ${error.message}`);
+        // Continue anyway - settings might already be correct
+      }
+    }
+    // ========================================
+
     // Enable CDP network interception
     logger.info("Enabling CDP network interception...");
     const cdpInterceptor = new CDPInterceptor(driver, logger);
@@ -134,6 +156,7 @@ async function automateWithAPIQueue(profilePath, prompts, settings = {}) {
       {
         downloadConcurrency: settings.downloadConcurrency || 5,
         outputDir: settings.outputDir || "dist/videos",
+        onProgress: settings.onProgress, // Pass progress callback to orchestrator
       },
     );
 

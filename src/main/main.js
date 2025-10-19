@@ -99,13 +99,59 @@ ipcMain.handle(
 
       console.log(`Using profile: ${profile.name} (${profile.path})`);
 
+      // Send initial progress
+      console.log('[Progress] Sending initial progress...');
+      try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("automation:progress", {
+            current: 0,
+            total: prompts.length,
+            status: "Initializing automation...",
+          });
+          console.log('[Progress] Initial progress sent');
+        } else {
+          console.error('[Progress] mainWindow is null or destroyed at start!');
+        }
+      } catch (error) {
+        console.error('[Progress] Error sending initial progress:', error);
+      }
+
       // Run automation with new API-driven approach
       console.log("Starting API-driven automation...");
+      
+      // Create progress callback
+      const onProgress = (current, status) => {
+        console.log(`[Progress] Update: ${current}/${prompts.length} - ${status}`);
+        
+        try {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("automation:progress", {
+              current,
+              total: prompts.length,
+              status,
+            });
+            console.log(`[Progress] Sent to renderer: ${current}/${prompts.length}`);
+          } else {
+            console.error('[Progress] mainWindow is null or destroyed!');
+          }
+        } catch (error) {
+          console.error('[Progress] Error sending to renderer:', error);
+        }
+      };
+
       const twoPhaseResults = await automateWithAPIQueue(
         profile.path,
         prompts,
-        settings,
+        { ...settings, onProgress },
       );
+      
+      // Send completion progress
+      mainWindow.webContents.send("automation:progress", {
+        current: prompts.length,
+        total: prompts.length,
+        status: "Completed!",
+      });
+      
       console.log("API-driven automation completed, processing results...");
 
       // Convert to expected format with error handling
@@ -205,5 +251,50 @@ ipcMain.handle("profiles:openForLogin", async (event, profileId) => {
   } catch (error) {
     console.error("Failed to open profile for login:", error);
     throw new Error(`Failed to open profile for login: ${error.message}`);
+  }
+});
+
+// File system handlers
+ipcMain.handle("fs:selectFolder", async () => {
+  try {
+    const { dialog } = require("electron");
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openDirectory", "createDirectory"],
+      title: "Select Output Folder",
+    });
+
+    if (result.canceled) {
+      return null;
+    }
+
+    return result.filePaths[0];
+  } catch (error) {
+    console.error("Failed to select folder:", error);
+    throw new Error(`Failed to select folder: ${error.message}`);
+  }
+});
+
+ipcMain.handle("fs:openFolder", async (event, folderPath) => {
+  try {
+    const { shell } = require("electron");
+    const path = require("path");
+    const fs = require("fs");
+
+    // Resolve relative path
+    const absolutePath = path.isAbsolute(folderPath)
+      ? folderPath
+      : path.resolve(process.cwd(), folderPath);
+
+    // Create folder if it doesn't exist
+    if (!fs.existsSync(absolutePath)) {
+      fs.mkdirSync(absolutePath, { recursive: true });
+    }
+
+    // Open folder in file explorer
+    await shell.openPath(absolutePath);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to open folder:", error);
+    throw new Error(`Failed to open folder: ${error.message}`);
   }
 });

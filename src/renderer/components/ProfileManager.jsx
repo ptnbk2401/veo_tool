@@ -154,10 +154,9 @@ function ProfileManager({ onProfileSelected }) {
                 <div className="profile-name">
                   {profile.name}
                   {selectedProfile?.id === profile.id && (
-                    <span className="badge-selected">Selected</span>
+                    <span className="badge-selected">✓ Selected</span>
                   )}
                 </div>
-                <div className="profile-path">{profile.path}</div>
                 <div className="profile-meta">
                   Created: {new Date(profile.createdAt).toLocaleDateString()}
                 </div>
