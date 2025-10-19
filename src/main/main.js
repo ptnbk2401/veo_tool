@@ -2,8 +2,14 @@ const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const isDev = process.argv.includes("--dev");
 
-// Import automation module
-const { automateClipCreation, loadPromptsFromCSV } = require("./automation");
+// Fix cache issues on Windows
+app.commandLine.appendSwitch('--disable-gpu');
+app.commandLine.appendSwitch('--disable-gpu-cache');
+app.commandLine.appendSwitch('--disable-gpu-sandbox');
+app.commandLine.appendSwitch('--no-sandbox');
+
+// Import automation modules
+const { automateWithAPIQueue, automateWithTwoPhase } = require("./automation");
 const ProfileManager = require("./profile-manager");
 
 let mainWindow;
@@ -23,17 +29,26 @@ function createWindow() {
     show: false,
   });
 
+  // Add error handling
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('Failed to load:', errorCode, errorDescription);
+  });
+
+  mainWindow.webContents.on('crashed', () => {
+    console.error('Renderer process crashed');
+  });
+
   // Load the app
   if (isDev) {
     // In development, load built files (we'll build first)
     mainWindow.loadFile(
-      path.join(__dirname, "../../dist-renderer/src/renderer/index.html")
+      path.join(__dirname, "../../dist-renderer/index.html")
     );
     mainWindow.webContents.openDevTools();
   } else {
     // In production, load built files
     mainWindow.loadFile(
-      path.join(__dirname, "../../dist-renderer/src/renderer/index.html")
+      path.join(__dirname, "../../dist-renderer/index.html")
     );
   }
 
@@ -85,12 +100,36 @@ ipcMain.handle(
 
       console.log(`Using profile: ${profile.name} (${profile.path})`);
 
-      // Run automation
-      const results = await automateClipCreation(
-        profile.path,
-        prompts,
-        settings
-      );
+      // Run automation with new API-driven approach
+      console.log("Starting API-driven automation...");
+      const twoPhaseResults = await automateWithAPIQueue(profile.path, prompts, settings);
+      console.log("API-driven automation completed, processing results...");
+
+      // Convert to expected format with error handling
+      const results = [];
+      if (twoPhaseResults && twoPhaseResults.prompts && Array.isArray(twoPhaseResults.prompts)) {
+        twoPhaseResults.prompts.forEach((prompt, index) => {
+          const promptVideos = twoPhaseResults.manifest ? 
+            twoPhaseResults.manifest.filter(m => m.idx === prompt.index) : [];
+          
+          results.push({
+            prompt: prompt.promptText || prompts[index] || `Prompt ${index + 1}`,
+            filePath: promptVideos.length > 0 ? promptVideos[0].file_path : '',
+            timestamp: prompt.submitTime || new Date().toISOString(),
+            status: promptVideos.length > 0 ? 'success' : 'no videos found'
+          });
+        });
+      } else {
+        // Fallback: create results from original prompts
+        prompts.forEach((prompt, index) => {
+          results.push({
+            prompt: prompt,
+            filePath: '',
+            timestamp: new Date().toISOString(),
+            status: 'error: automation failed'
+          });
+        });
+      }
 
       // Update last used
       await profileManager.updateLastUsed(profileId);
@@ -102,6 +141,10 @@ ipcMain.handle(
         success,
         failed,
         results,
+        // Add Two-Phase specific info (with fallbacks)
+        totalVideos: twoPhaseResults?.totalVideos || 0,
+        promptsWithVideos: twoPhaseResults?.promptsWithVideos || 0,
+        manifest: twoPhaseResults?.manifest || []
       };
     } catch (error) {
       console.error("Automation failed:", error);

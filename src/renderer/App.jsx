@@ -165,6 +165,22 @@ function App() {
                 disabled={isRunning}
               />
             </div>
+
+            <div className="setting-item">
+              <label htmlFor="useSemaphore">
+                <input
+                  id="useSemaphore"
+                  type="checkbox"
+                  checked={settings.useSemaphore || false}
+                  onChange={(e) => setSettings({ useSemaphore: e.target.checked })}
+                  disabled={isRunning}
+                />
+                Use Semaphore Mode (Faster - Max 5 concurrent jobs)
+              </label>
+              <small className="setting-help">
+                Semaphore mode allows up to 5 videos to generate simultaneously, significantly faster than sequential processing.
+              </small>
+            </div>
           </div>
         </section>
 

@@ -147,8 +147,16 @@ class ProfileManager {
       .addArguments(`--user-data-dir=${profile.path}`)
       .addArguments("--no-first-run")
       .addArguments("--no-default-browser-check")
-      .excludeSwitches(["enable-automation"]) // Hide "Chrome is being controlled" message
-      .addArguments("--disable-infobars"); // Hide info bars
+      .addArguments("--disable-blink-features=AutomationControlled")
+      .addArguments("--disable-extensions")
+      .addArguments("--disable-plugins")
+      .addArguments("--disable-web-security")
+      .addArguments("--disable-features=VizDisplayCompositor")
+      .addArguments("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+      .excludeSwitches(["enable-automation", "enable-logging"])
+      .addArguments("--disable-infobars")
+      .addArguments("--disable-dev-shm-usage")
+      .addArguments("--no-sandbox");
 
     const driver = await new Builder()
       .forBrowser("chrome")

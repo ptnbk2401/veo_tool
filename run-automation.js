@@ -13,7 +13,7 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs-extra");
 const {
-  automateClipCreation,
+  automateWithAPIQueue,
   loadPromptsFromCSV,
 } = require("./src/main/automation");
 
@@ -200,12 +200,11 @@ async function main() {
     }
   });
 
-  console.log("\n🚀 VEO3 Automation Tool - Standalone Mode");
+  console.log("\n🚀 VEO3 Automation Tool - API-Driven Mode");
   console.log("==========================================");
   console.log(`CSV File: ${config.csvPath}`);
-  console.log(`Aspect Ratio: ${config.aspectRatio}`);
-  console.log(`Output Count: ${config.outputCount}`);
   console.log(`Profile Path: ${config.profilePath}`);
+  console.log(`Mode: API-Driven (Submit → Poll → Download via VEO APIs)`);
   console.log("==========================================");
   console.log("\n💡 Tips:");
   console.log("  - List profiles: npm run profiles");
@@ -222,11 +221,30 @@ async function main() {
     console.log(`✓ Loaded ${prompts.length} prompts\n`);
 
     // Run automation
-    console.log("🎬 Starting automation...\n");
-    const results = await automateClipCreation(config.profilePath, prompts, {
-      aspectRatio: config.aspectRatio,
-      outputCount: config.outputCount,
+    console.log("🎬 Starting API-driven automation...\n");
+    
+    const twoPhaseResults = await automateWithAPIQueue(config.profilePath, prompts, {
+      downloadConcurrency: 5,
+      retryMax: 3
     });
+    
+    // Convert to compatible format for summary
+    const results = twoPhaseResults.prompts.map((prompt, index) => {
+      const promptVideos = twoPhaseResults.manifest.filter(m => m.promptIndex === prompt.index);
+      return {
+        prompt: prompt.promptText,
+        filePath: promptVideos.length > 0 ? `dist/videos/${promptVideos[0].filename}` : '',
+        timestamp: prompt.submitTime || new Date().toISOString(),
+        status: promptVideos.length > 0 ? 'success' : 'no videos found'
+      };
+    });
+    
+    console.log(`\n📊 API-Driven Results:`);
+    console.log(`   Total prompts: ${twoPhaseResults.totalPrompts}`);
+    console.log(`   Total videos: ${twoPhaseResults.totalVideos}`);
+    console.log(`   Prompts with videos: ${twoPhaseResults.promptsWithVideos}`);
+    console.log(`   Manifest saved: dist/manifest.json`);
+    console.log(`   Database: data/veo-automation.db`);
 
     // Summary
     const success = results.filter((r) => r.status === "success").length;

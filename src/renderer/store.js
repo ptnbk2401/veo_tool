@@ -9,6 +9,7 @@ const useStore = create((set) => ({
   settings: {
     aspectRatio: "16:9",
     outputCount: 1,
+    useSemaphore: false,
   },
   setSettings: (settings) =>
     set((state) => ({

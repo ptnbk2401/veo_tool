@@ -1,8 +1,17 @@
 # VEO3 Automation Tool
 
-Desktop automation tool for Google Labs Flow (Veo 3) video generation using Chrome profiles and Selenium WebDriver.
+Desktop automation tool for Google Labs Flow (Veo 3) video generation using **API-driven architecture** with Chrome profiles and Selenium WebDriver.
 
-## Tính năng
+## 🚀 Tính năng mới (v2.0 - API-Driven)
+
+- ✨ **API-driven architecture**: Gọi trực tiếp VEO APIs thay vì DOM scraping
+- ✨ **SQLite persistence**: Lưu trữ state bền vững, resume được sau crash
+- ✨ **Strict concurrency control**: Tự động giữ tối đa 5 prompts đang xử lý
+- ✨ **Direct video download**: Tải video trực tiếp từ `fifeUrl` (nhanh & ổn định)
+- ✨ **Crash-safe resume**: Khôi phục tự động sau lỗi hoặc restart
+- ✨ **Standardized filenames**: Tên file theo chuẩn với prompt index và metadata
+
+## Tính năng cơ bản
 
 - ✅ Tự động hóa quy trình tạo video Text to Video trên Google Flow
 - ✅ Upload CSV chứa danh sách prompts
@@ -11,8 +20,8 @@ Desktop automation tool for Google Labs Flow (Veo 3) video generation using Chro
 - ✅ Giao diện tạo và quản lý profiles
 - ✅ Login thủ công với Chrome profile riêng
 - ✅ Logging chi tiết với Winston
-- ✅ Lưu output video với UUID
-- ✅ Ghi kết quả vào CSV
+- ✅ Lưu output video với tên chuẩn
+- ✅ Ghi kết quả vào manifest.json
 - ✅ Chạy standalone (không cần Electron) để bypass Gatekeeper trên macOS
 
 ## Quick Start
@@ -144,8 +153,10 @@ veo3-automation-tool/
 
 ## Output
 
-- **Videos**: Lưu trong `dist/videos/` với tên `video-{uuid}.mp4`
-- **Output CSV**: `output.csv` chứa thông tin prompt, file path, timestamp, status
+- **Videos**: Lưu trong `dist/videos/` với tên chuẩn: `YYYY-MM-DD_{pIdx3}_{tailSlug}_{modelShort}_{takeIdx2}_{dur}s.mp4`
+  - Ví dụ: `2025-10-18_003_yasuo-rain-hand_veo3.1_02_8s.mp4`
+- **Manifest**: `dist/manifest.json` chứa thông tin chi tiết tất cả prompts và videos
+- **Database**: `data/veo-automation.db` (SQLite) lưu trữ state để resume
 - **Logs**: `logs/automation.log` chứa log chi tiết
 
 ## Lưu ý quan trọng
@@ -162,10 +173,16 @@ Kiểm tra: `npm run test-setup`
 - Profiles lưu tại: `~/.veo3-automation/profiles/`
 - Mỗi profile có session riêng
 
-### 3. DOM Selectors
+### 3. API-Driven Architecture (v2.0)
 
-Selectors trong `automation.js` là placeholder, cần inspect DOM thực tế (F12) và cập nhật.
-Ưu tiên: `[data-testid]`, `[aria-label]`, `#id` (tránh text vì đa ngôn ngữ)
+**Cách hoạt động mới:**
+- Selenium chỉ dùng để authenticate (lấy cookies)
+- Sau đó gọi trực tiếp VEO APIs:
+  - `POST /v1/video:batchAsyncGenerateVideoText` - Submit prompts
+  - `POST /v1/video:batchCheckAsyncVideoGenerationStatus` - Poll status
+  - Download trực tiếp từ `fifeUrl`
+- SQLite lưu trữ state → resume được sau crash
+- Tự động giữ tối đa 5 prompts đang xử lý (VEO limit)
 
 ### 4. Không đóng Chrome thủ công!
 
@@ -177,9 +194,21 @@ Tool sẽ tự động kiểm tra login. Nếu chưa login sẽ báo lỗi và d
 
 ### 6. Timeout & Retry
 
-- Generate timeout: 120 giây (2 phút)
-- Click/Input timeout: 10 giây
-- Download wait: 5 giây
+- **Prompt timeout**: 180-240 giây (3-4 phút)
+- **API timeout**: 15 giây per request
+- **Download timeout**: 60 giây
+- **Retry**: 3 lần với exponential backoff (1s, 2s, 4s)
+- **Poll interval**: 1.5-2.5 giây với jitter ±250ms
+
+### 7. Resume Capability
+
+Nếu automation bị gián đoạn:
+- State được lưu trong SQLite (`data/veo-automation.db`)
+- Khi restart, tự động:
+  - Reset prompts đang submit → queued
+  - Timeout prompts > 24h → timeout
+  - Reset downloads đang chạy → queued
+- Chạy lại automation để tiếp tục
 
 ## Troubleshooting
 
@@ -207,6 +236,35 @@ Hoặc đóng Chrome thủ công trước khi chạy automation.
 
 **Lưu ý**: Chỉ kill Chrome process của profile đang dùng, không ảnh hưởng Chrome khác.
 
+### API Authentication Failed (401/403)
+
+Nếu gặp lỗi authentication:
+1. Login lại: `npm run login`
+2. Đảm bảo đã đăng nhập Google Flow thành công
+3. Đợi 5-10 giây sau khi login trước khi đóng Chrome
+4. Chạy lại automation
+
+### Database Locked
+
+Nếu gặp lỗi "database is locked":
+- Đảm bảo không có automation nào khác đang chạy
+- Xóa file `data/veo-automation.db-wal` và `data/veo-automation.db-shm`
+- Chạy lại
+
+### Download Failed / URL Expired
+
+Nếu download thất bại với lỗi 403:
+- Tool sẽ tự động re-poll để lấy URL mới
+- Nếu vẫn lỗi, check logs để xem chi tiết
+
+### Resume After Crash
+
+Nếu automation bị crash:
+1. Check logs: `logs/automation.log`
+2. Check database: `data/veo-automation.db`
+3. Chạy lại automation - sẽ tự động resume từ state cũ
+4. Nếu muốn start fresh: xóa database và chạy lại
+
 ### macOS Gatekeeper (Electron)
 
 ```bash
@@ -214,6 +272,56 @@ xattr -d com.apple.quarantine ./node_modules/.bin/electron
 ```
 
 Hoặc dùng standalone: `node run-automation.js`
+
+## Architecture (v2.0)
+
+### Components
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  Electron Main Process                   │
+│                                                           │
+│  ┌──────────┐      ┌────────────────────────────────┐  │
+│  │ Selenium │──────▶│      API Client                │  │
+│  │ (Auth)   │      │  - Submit prompts              │  │
+│  └──────────┘      │  - Poll status                 │  │
+│                     │  - Download videos             │  │
+│                     └────────────────────────────────┘  │
+│                                │                         │
+│                                ▼                         │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │              Orchestrator                          │ │
+│  │  ┌────────┐  ┌────────┐  ┌──────────────────┐   │ │
+│  │  │ Feeder │  │ Poller │  │   Downloader     │   │ │
+│  │  │(300-500│  │(1.5-2.5│  │   (4-6 workers)  │   │ │
+│  │  │   ms)  │  │s+jitter│  │                  │   │ │
+│  │  └────────┘  └────────┘  └──────────────────┘   │ │
+│  └────────────────────────────────────────────────────┘ │
+│                           │                              │
+│                           ▼                              │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │          SQLite Database (WAL mode)                │ │
+│  │  ┌────────┐  ┌──────────┐  ┌────────────┐       │ │
+│  │  │prompts │  │operations│  │  downloads │       │ │
+│  │  └────────┘  └──────────┘  └────────────┘       │ │
+│  └────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Flow
+
+1. **Submit Phase**: Feeder submits prompts via API (max 5 concurrent)
+2. **Poll Phase**: Poller checks status every 1.5-2.5s
+3. **Download Phase**: Downloader streams videos from fifeUrl
+4. **State Management**: All state persisted in SQLite for resume
+
+### Files
+
+- `src/main/db.js` - SQLite database layer
+- `src/main/api-client.js` - VEO API client
+- `src/main/orchestrator.js` - Feeder/Poller/Downloader coordination
+- `src/main/automation.js` - Main entry point
+- `data/veo-automation.db` - SQLite database (created on first run)
 
 ## Scripts
 

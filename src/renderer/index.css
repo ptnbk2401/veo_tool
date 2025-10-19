@@ -100,6 +100,27 @@ body {
   border-color: #667eea;
 }
 
+/* Checkbox styling */
+.setting-item input[type="checkbox"] {
+  width: auto;
+  margin-right: 0.5rem;
+  transform: scale(1.2);
+}
+
+.setting-item label:has(input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+  cursor: pointer;
+}
+
+.setting-help {
+  color: #718096;
+  font-size: 0.8rem;
+  font-weight: normal;
+  margin-top: 0.3rem;
+  line-height: 1.4;
+}
+
 /* Buttons */
 .btn {
   padding: 0.6rem 1.2rem;
